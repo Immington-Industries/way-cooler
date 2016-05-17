@@ -32,7 +32,6 @@ pub struct Tree {
 unsafe impl Send for Tree {}
 
 impl Tree {
-
     /// Switch to the workspace with the give name
     pub fn switch_workspace(&mut self, name: &str ) {
         trace!("Switching to workspace {}", name);
@@ -49,10 +48,10 @@ impl Tree {
             }
             let new_current_workspace = self.get_workspace_by_name_mut(name).expect(ERR_BAD_TREE);
             new_current_workspace.set_visibility(true);
-            // Set the first view to be focused, so that the view is updated to this new workspace
-            if new_current_workspace.get_children().len() > 0 {
+            // Set the first view to be focused, so the screen refreshes itself
+            if new_current_workspace.get_children()[0].get_children().len() > 0 {
                 trace!("Focusing view");
-                match new_current_workspace.get_children_mut()[0]
+                match new_current_workspace.get_children_mut()[0].get_children_mut()[0]
                     .get_val().get_handle().expect(ERR_BAD_TREE) {
                     Handle::View(view) => view.focus(),
                     _ => {},
@@ -60,10 +59,12 @@ impl Tree {
             } else {
                 WlcView::root().focus();
             }
-            current_workspace = new_current_workspace as *const Node;
+            // Update the tree's pointer to the currently focused container
+            current_workspace = &new_current_workspace.get_children()[0] as *const Node;
         }
         self.active_container = current_workspace;
     }
+
     /// Returns the currently viewed container.
     /// If multiple views are selected, the parent container they share is returned
     pub fn get_active_container(&self) -> Option<&Node> {
@@ -77,7 +78,7 @@ impl Tree {
     }
 
     /// Get the monitor (output) that the active container is located on
-    pub fn get_active_output(&self) -> Option<&Node> {
+    pub fn get_active_output(&self) -> Option<&mut Node> {
         if let Some(node) = self.get_active_container() {
             node.get_ancestor_of_type(ContainerType::Output)
         } else {
@@ -88,16 +89,8 @@ impl Tree {
     /// Get the workspace that the active container is located on
     pub fn get_active_workspace(&self) -> Option<&mut Node> {
         if let Some(container) = self.get_active_container() {
-            //if let Some(child) = container.get_ancestor_of_type(ContainerType::Workspace) {
-            //return child.get_children()[0].get_parent()
-
-            //}
-            // NOTE hack here, remove commented code above to make this work properly
-            let parent = container.get_parent().expect(ERR_BAD_TREE);
-            for child in parent.get_children_mut() {
-                if child == container {
-                    return Some(child);
-                }
+            if let Some(workspace) = container.get_ancestor_of_type(ContainerType::Workspace) {
+                return Some(workspace)
             }
         }
         return None
@@ -143,15 +136,25 @@ impl Tree {
                 }
             }
         }
-        self.root.get_children_mut()[index].new_child(workspace);
+        let workspace = self.root.get_children_mut()[index].new_child(workspace);
+        workspace.new_child(Container::new_container());
     }
 
     /// Make a new view container with the given WlcView, and adds it to
     /// the active workspace.
-    pub fn add_view(&self, wlc_view: WlcView) {
+    pub fn add_view(&mut self, wlc_view: WlcView) {
+        let mut maybe_new_view: *const Node = ptr::null();
         if let Some(current_workspace) = self.get_active_workspace() {
             trace!("Adding view {:?} to {:?}", wlc_view, current_workspace);
-            current_workspace.new_child(Container::new_view(wlc_view));
+            if current_workspace.get_children().len() == 0 {
+                current_workspace.new_child(Container::new_container());
+            }
+            let container = &mut current_workspace.get_children_mut()[0];
+            let view_node = container.new_child(Container::new_view(wlc_view));
+            maybe_new_view = view_node as *const Node;
+        };
+        if ! maybe_new_view.is_null() {
+            self.active_container = maybe_new_view as *const Node;
         }
     }
 

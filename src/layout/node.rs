@@ -50,7 +50,7 @@ impl Node {
 
     /// Tries to get an ancestor of the requested type
     pub fn get_ancestor_of_type(&self, container_type: ContainerType)
-                                -> Option<&Node> {
+                                -> Option<&mut Node> {
         let mut maybe_parent = self.get_parent();
         loop {
             if let Some(parent) = maybe_parent {
@@ -177,6 +177,7 @@ impl Node {
     /// Sets the visibility of the container and its children
     pub fn set_visibility(&mut self, visibility: bool) {
         self.val.set_visibility(visibility);
+        warn!("Children: {}", self.get_children().len());
         for child in self.get_children_mut() {
             child.set_visibility(visibility);
         }

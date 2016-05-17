@@ -57,7 +57,7 @@ pub extern fn output_render_post(output: WlcOutput) {
 pub extern fn view_created(view: WlcView) -> bool {
     trace!("view_created: {:?}: \"{}\"", view, view.get_title());
     let output = view.get_output();
-    if let Ok(tree) = tree::try_lock_tree() {
+    if let Ok(mut tree) = tree::try_lock_tree() {
         tree.add_view(view.clone());
         view.set_mask(output.get_mask());
         view.bring_to_front();

@@ -121,10 +121,9 @@ impl Container {
     }
 
     /// Creates a new container
-    #[allow(dead_code)]
     pub fn new_container() -> Container {
         Container::Container {
-            layout: Layout::Horizontal, // default layout?
+            layout: Layout::Floating, // default layout?
             visible: false,
             focused: false,
             floating: false
@@ -146,12 +145,15 @@ impl Container {
         match *self {
             Container::View { ref mut visible, .. } => *visible = visibility,
             Container::Container { ref mut visible, .. } => *visible = visibility,
-            _ => {},
+            _ => {return},
         }
         let mask = if visibility { 1 } else { 0 };
         if let Some(handle) = self.get_handle() {
             match handle {
-                Handle::View(view) => view.set_mask(mask),
+                Handle::View(view) => {
+                    warn!("Setting {:?} visibility to {}", view, visibility);
+                    view.set_mask(mask)
+                },
                 _ => {},
             }
         }
