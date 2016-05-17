@@ -123,7 +123,7 @@ impl Container {
     /// Creates a new container
     pub fn new_container() -> Container {
         Container::Container {
-            layout: Layout::Floating, // default layout?
+            layout: Layout::Floating,
             visible: false,
             focused: false,
             floating: false
@@ -151,7 +151,6 @@ impl Container {
         if let Some(handle) = self.get_handle() {
             match handle {
                 Handle::View(view) => {
-                    warn!("Setting {:?} visibility to {}", view, visibility);
                     view.set_mask(mask)
                 },
                 _ => {},

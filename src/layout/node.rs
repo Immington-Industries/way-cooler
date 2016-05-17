@@ -26,7 +26,12 @@ impl Node {
     }
 
     /// Add a new child node to this node, using a value
-    pub fn new_child(&mut self, val: Container) -> &mut Node {
+    pub fn new_child(&mut self, val: Container) -> Result<&mut Node, String> {
+        if ! self.val.get_type().can_have_child(val.get_type()) {
+            return Err(format!("{:?}({:?}) cannot be a child of {:?}({:?})",
+                               val, val.get_type(),
+                               self.val, self.val.get_type()));
+        }
         let self_mut = self as *mut Node;
         self.children.push(Node {
             parent: self_mut,
@@ -34,7 +39,7 @@ impl Node {
             children: Vec::new()
         });
         let last_ix = self.children.len() -1;
-        &mut self.children[last_ix]
+        Ok(&mut self.children[last_ix])
     }
 
     /// Whether this node has a (currently-reachable) parent
@@ -177,7 +182,6 @@ impl Node {
     /// Sets the visibility of the container and its children
     pub fn set_visibility(&mut self, visibility: bool) {
         self.val.set_visibility(visibility);
-        warn!("Children: {}", self.get_children().len());
         for child in self.get_children_mut() {
             child.set_visibility(visibility);
         }
@@ -204,46 +208,46 @@ mod tests {
     /// Nodes can have children added to them
     #[test]
     fn new_child() {
-        let mut root = Node::new(Container::Root);
-        root.new_child(Container::Root);
-        root.new_child(Container::Root); // This is okay
+        let mut root = Node::new(Container::new_container());
+        root.new_child(Container::new_container()).unwrap();
+        root.new_child(Container::new_container()).unwrap(); // This is okay
         {
-            let mut third_child = root.new_child(Container::Root);
-            third_child.new_child(Container::Root);
+            let mut third_child = root.new_child(Container::new_container()).unwrap();
+            third_child.new_child(Container::new_container()).unwrap();
             //root.new_child(Root); // Have to wait for 3rd child to drop
         }
-        root.new_child(Container::Root); // Now this works
+        root.new_child(Container::new_container()).unwrap(); // Now this works
         assert_eq!(root.children.len(), 4);
     }
 
     #[test]
     fn has_get_parent() {
-        let mut root = Node::new(Container::Root);
+        let mut root = Node::new(Container::new_container());
         assert!(!root.has_parent(), "Root has a parent");
         assert_eq!(root.get_parent(), None);
 
-        let child = root.new_child(Container::Root);
+        let child = root.new_child(Container::new_container()).unwrap();
         assert!(child.has_parent(), "Child does not have parent");
         assert!(child.get_parent().is_some(), "Child does not have parent");
         let parent = child.get_parent().expect("Asserted child has parent");
-        assert_eq!(parent.get_container_type(), ContainerType::Root);
+        assert_eq!(parent.get_container_type(), ContainerType::Container);
     }
 
     #[test]
     fn get_container_type() {
-        let mut root = Node::new(Container::Root);
-        assert_eq!(root.get_container_type(), ContainerType::Root);
+        use rustwlc::handle::*;
+        let mut root = Node::new(Container::new_container());
+        assert_eq!(root.get_container_type(), ContainerType::Container);
         {
             let wksp = root.new_child(
-                Container::Workspace { name: "Foo".to_string(),
-                                       focused: false });
-            assert_eq!(wksp.get_container_type(), ContainerType::Workspace);
+                Container::new_view(WlcView::root())).unwrap();
+            assert_eq!(wksp.get_container_type(), ContainerType::View);
         }
         {
             let container = root.new_child(Container::Container {
                 layout: Layout::Horizontal, visible: false,
                 floating: false, focused: false
-            });
+            }).unwrap();
             assert_eq!(container.get_container_type(), ContainerType::Container);
         }
     }
@@ -251,13 +255,13 @@ mod tests {
     #[test]
     fn get_children() {
         // Create a root with 3 children. The 3rd child has 2 children.
-        let mut root = Node::new(Container::Root);
-        root.new_child(Container::Root);
-        root.new_child(Container::Root);
+        let mut root = Node::new(Container::new_container());
+        root.new_child(Container::new_container()).unwrap();
+        root.new_child(Container::new_container()).unwrap();
         {
-            let third_child = root.new_child(Container::Root);
-            third_child.new_child(Container::Root);
-            third_child.new_child(Container::Root);
+            let third_child = root.new_child(Container::new_container()).unwrap();
+            third_child.new_child(Container::new_container()).unwrap();
+            third_child.new_child(Container::new_container()).unwrap();
         }
         let root_children = root.get_children();
         assert!(!root_children.is_empty(), "Root has children");
@@ -274,8 +278,8 @@ mod tests {
     #[test]
     fn get_children_mut() {
         // Start out with one child, use get_mut_children to add grandchild.
-        let mut root = Node::new(Container::Root);
-        root.new_child(Container::Root);
+        let mut root = Node::new(Container::new_container());
+        root.new_child(Container::new_container()).unwrap();
 
         assert!(root.get_children().last().expect("Root has child")
                 .get_children().is_empty(), "Root has no grandchildren");
@@ -285,7 +289,7 @@ mod tests {
             assert_eq!(children.len(), 1);
 
             let mut child = &mut children[0];
-            child.new_child(Container::Root);
+            child.new_child(Container::new_container()).unwrap();
         }
 
         assert_eq!(root.get_children().last().expect("Asserted unwrap!")
@@ -294,15 +298,14 @@ mod tests {
 
     #[test]
     fn remove_child_at() {
-        let mut root = Node::new(Container::Root);
-        root.new_child(Container::Root);
-        root.new_child(Container::Workspace {
-            name: "Foo".to_string(), focused: false
-        });
-        root.new_child(Container::Root);
+        use rustwlc::handle::*;
+        let mut root = Node::new(Container::new_container());
+        root.new_child(Container::new_container()).unwrap();
+        root.new_child(Container::new_view(WlcView::root())).unwrap();
+        root.new_child(Container::new_container()).unwrap();
 
         let worksp = root.remove_child_at(1).expect("Index should be valid");
-        assert_eq!(worksp.get_container_type(), ContainerType::Workspace);
+        assert_eq!(worksp.get_container_type(), ContainerType::View);
         assert_eq!(root.get_children().len(), 2)
     }
 }

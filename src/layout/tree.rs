@@ -121,7 +121,10 @@ impl Tree {
     /// Make a new output container with the given WlcOutput.
     /// This is done when a new monitor is added
     pub fn add_output(&mut self, wlc_output: WlcOutput) {
-        self.root.new_child(Container::new_output(wlc_output));
+        match self.root.new_child(Container::new_output(wlc_output)) {
+            Ok(_) => {},
+            Err(e) => error!("Could not add output: {:?}", e),
+        }
     }
 
     /// Make a new workspace container with the given name.
@@ -136,8 +139,15 @@ impl Tree {
                 }
             }
         }
-        let workspace = self.root.get_children_mut()[index].new_child(workspace);
-        workspace.new_child(Container::new_container());
+        match self.root.get_children_mut()[index].new_child(workspace) {
+            Ok(workspace) => {
+                trace!("Added workspace {:?}", workspace);
+                if let Err(e) = workspace.new_child(Container::new_container()) {
+                    error!("Could not add container to workspace: {:?}",e );
+                }
+            },
+            Err(e) => error!("Could not add workspace: {:?}", e),
+        }
     }
 
     /// Make a new view container with the given WlcView, and adds it to
@@ -147,11 +157,22 @@ impl Tree {
         if let Some(current_workspace) = self.get_active_workspace() {
             trace!("Adding view {:?} to {:?}", wlc_view, current_workspace);
             if current_workspace.get_children().len() == 0 {
-                current_workspace.new_child(Container::new_container());
+                match current_workspace.new_child(Container::new_container()) {
+                    Ok(_) => {},
+                    Err(e) => {
+                        error!("Could not add workspace: {:?}", e);
+                        return;
+                    }
+                }
             }
             let container = &mut current_workspace.get_children_mut()[0];
-            let view_node = container.new_child(Container::new_view(wlc_view));
-            maybe_new_view = view_node as *const Node;
+            match container.new_child(Container::new_view(wlc_view)) {
+                Ok(view_node) => maybe_new_view = view_node as *const Node,
+                Err(e) => {
+                    error!("Could not add view to current workspace: {:?}", e);
+                    return;
+                }
+            }
         };
         if ! maybe_new_view.is_null() {
             self.active_container = maybe_new_view as *const Node;
