@@ -2,7 +2,7 @@
 
 use std::ptr;
 
-use rustwlc::handle::WlcView;
+use rustwlc::WlcView;
 
 use super::container::*;
 
@@ -202,31 +202,36 @@ unsafe impl Send for Node {}
 
 #[cfg(test)]
 mod tests {
+    use rustwlc::*;
+    const FAKE_GEOMETRY: Geometry = Geometry {
+        size: Size { w: 0, h:0 },
+        origin: Point { x: 0, y: 0}
+    };
     use super::Node;
     use super::super::container::*;
 
     /// Nodes can have children added to them
     #[test]
     fn new_child() {
-        let mut root = Node::new(Container::new_container());
-        root.new_child(Container::new_container()).unwrap();
-        root.new_child(Container::new_container()).unwrap(); // This is okay
+        let mut root = Node::new(Container::new_container(FAKE_GEOMETRY));
+        root.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
+        root.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap(); // This is okay
         {
-            let mut third_child = root.new_child(Container::new_container()).unwrap();
-            third_child.new_child(Container::new_container()).unwrap();
+            let mut third_child = root.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
+            third_child.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
             //root.new_child(Root); // Have to wait for 3rd child to drop
         }
-        root.new_child(Container::new_container()).unwrap(); // Now this works
+        root.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap(); // Now this works
         assert_eq!(root.children.len(), 4);
     }
 
     #[test]
     fn has_get_parent() {
-        let mut root = Node::new(Container::new_container());
+        let mut root = Node::new(Container::new_container(FAKE_GEOMETRY));
         assert!(!root.has_parent(), "Root has a parent");
         assert_eq!(root.get_parent(), None);
 
-        let child = root.new_child(Container::new_container()).unwrap();
+        let child = root.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
         assert!(child.has_parent(), "Child does not have parent");
         assert!(child.get_parent().is_some(), "Child does not have parent");
         let parent = child.get_parent().expect("Asserted child has parent");
@@ -235,8 +240,8 @@ mod tests {
 
     #[test]
     fn get_container_type() {
-        use rustwlc::handle::*;
-        let mut root = Node::new(Container::new_container());
+        use rustwlc::*;
+        let mut root = Node::new(Container::new_container(FAKE_GEOMETRY));
         assert_eq!(root.get_container_type(), ContainerType::Container);
         {
             let wksp = root.new_child(
@@ -246,7 +251,10 @@ mod tests {
         {
             let container = root.new_child(Container::Container {
                 layout: Layout::Horizontal, visible: false,
-                floating: false, focused: false
+                floating: false, focused: false, geometry: Geometry {
+                    size: Size { w: 0, h: 0},
+                    origin: Point {x: 0, y: 0}
+                }
             }).unwrap();
             assert_eq!(container.get_container_type(), ContainerType::Container);
         }
@@ -255,13 +263,13 @@ mod tests {
     #[test]
     fn get_children() {
         // Create a root with 3 children. The 3rd child has 2 children.
-        let mut root = Node::new(Container::new_container());
-        root.new_child(Container::new_container()).unwrap();
-        root.new_child(Container::new_container()).unwrap();
+        let mut root = Node::new(Container::new_container(FAKE_GEOMETRY));
+        root.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
+        root.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
         {
-            let third_child = root.new_child(Container::new_container()).unwrap();
-            third_child.new_child(Container::new_container()).unwrap();
-            third_child.new_child(Container::new_container()).unwrap();
+            let third_child = root.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
+            third_child.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
+            third_child.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
         }
         let root_children = root.get_children();
         assert!(!root_children.is_empty(), "Root has children");
@@ -278,8 +286,8 @@ mod tests {
     #[test]
     fn get_children_mut() {
         // Start out with one child, use get_mut_children to add grandchild.
-        let mut root = Node::new(Container::new_container());
-        root.new_child(Container::new_container()).unwrap();
+        let mut root = Node::new(Container::new_container(FAKE_GEOMETRY));
+        root.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
 
         assert!(root.get_children().last().expect("Root has child")
                 .get_children().is_empty(), "Root has no grandchildren");
@@ -289,7 +297,7 @@ mod tests {
             assert_eq!(children.len(), 1);
 
             let mut child = &mut children[0];
-            child.new_child(Container::new_container()).unwrap();
+            child.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
         }
 
         assert_eq!(root.get_children().last().expect("Asserted unwrap!")
@@ -299,10 +307,10 @@ mod tests {
     #[test]
     fn remove_child_at() {
         use rustwlc::handle::*;
-        let mut root = Node::new(Container::new_container());
-        root.new_child(Container::new_container()).unwrap();
+        let mut root = Node::new(Container::new_container(FAKE_GEOMETRY));
+        root.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
         root.new_child(Container::new_view(WlcView::root())).unwrap();
-        root.new_child(Container::new_container()).unwrap();
+        root.new_child(Container::new_container(FAKE_GEOMETRY)).unwrap();
 
         let worksp = root.remove_child_at(1).expect("Index should be valid");
         assert_eq!(worksp.get_container_type(), ContainerType::View);

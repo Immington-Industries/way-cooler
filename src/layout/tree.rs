@@ -6,7 +6,7 @@ use std::ptr;
 
 use super::container::{Container, Handle, ContainerType};
 use super::node::{Node};
-use super::super::rustwlc::handle::{WlcView, WlcOutput};
+use super::super::rustwlc::{WlcView, WlcOutput, Geometry, Point, ResizeEdge};
 
 
 pub type TreeErr = TryLockError<MutexGuard<'static, Tree>>;
@@ -129,12 +129,19 @@ impl Tree {
 
     /// Make a new workspace container with the given name.
     pub fn add_workspace(&mut self, name: String) {
-        let workspace = Container::new_workspace(name.to_string());
         if let Some(output) = self.get_active_output() {
+            let size = output.get_val().get_geometry()
+                .expect("Output did not have a geometry").size;
+            let workspace = Container::new_workspace(name.to_string(),
+                                                     size.clone());
             match output.new_child(workspace) {
                 Ok(workspace) => {
                     trace!("Added workspace {:?}", workspace);
-                    if let Err(e) = workspace.new_child(Container::new_container()) {
+                    let geometry = Geometry {
+                        size: size,
+                        origin: Point { x: 0, y: 0}
+                    };
+                    if let Err(e) = workspace.new_child(Container::new_container(geometry)) {
                         error!("Could not add container to workspace: {:?}",e );
                     }
                 },
@@ -150,7 +157,27 @@ impl Tree {
         if let Some(current_workspace) = self.get_active_workspace() {
             trace!("Adding view {:?} to {:?}", wlc_view, current_workspace);
             if current_workspace.get_children().len() == 0 {
-                match current_workspace.new_child(Container::new_container()) {
+                let output = self.get_active_output()
+                    .expect("Could not get active output");
+                let output_size = output.get_val().get_geometry()
+                    .expect("Could not get geometry from output").size;
+                let mut geometry = wlc_view.get_geometry()
+                    .expect("Could not get geometry from wlc view").clone();
+                // Ensure that it starts within the bounds
+                // Width
+                if geometry.origin.x > output_size.w as i32 {
+                    geometry.origin.x = output_size.w as i32 ;
+                } else if geometry.origin.x < 0 {
+                    geometry.origin.x = 0;
+                }
+                // Height
+                if geometry.origin.y > output_size.h as i32 {
+                    geometry.origin.y = output_size.h as i32;
+                } else if geometry.origin.y < 0 {
+                    geometry.origin.y = 0;
+                }
+                wlc_view.set_geometry(ResizeEdge::empty(), &geometry);
+                match current_workspace.new_child(Container::new_container(geometry)) {
                     Ok(_) => {},
                     Err(e) => {
                         error!("Could not add workspace: {:?}", e);
