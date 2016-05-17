@@ -130,23 +130,16 @@ impl Tree {
     /// Make a new workspace container with the given name.
     pub fn add_workspace(&mut self, name: String) {
         let workspace = Container::new_workspace(name.to_string());
-        let mut index = 0;
         if let Some(output) = self.get_active_output() {
-            for (cur_index, child) in self.root.get_children().iter().enumerate() {
-                if child == output {
-                    index = cur_index;
-                    break;
-                }
+            match output.new_child(workspace) {
+                Ok(workspace) => {
+                    trace!("Added workspace {:?}", workspace);
+                    if let Err(e) = workspace.new_child(Container::new_container()) {
+                        error!("Could not add container to workspace: {:?}",e );
+                    }
+                },
+                Err(e) => error!("Could not add workspace: {:?}", e),
             }
-        }
-        match self.root.get_children_mut()[index].new_child(workspace) {
-            Ok(workspace) => {
-                trace!("Added workspace {:?}", workspace);
-                if let Err(e) = workspace.new_child(Container::new_container()) {
-                    error!("Could not add container to workspace: {:?}",e );
-                }
-            },
-            Err(e) => error!("Could not add workspace: {:?}", e),
         }
     }
 
