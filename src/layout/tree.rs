@@ -58,6 +58,10 @@ impl Tree {
         if let Some(old_workspace) = self.get_active_workspace() {
             old_workspace.set_visibility(false);
         }
+        if self.active_container.is_null() {
+            warn!("Not current active container, cannot switch workspace");
+            return;
+        }
         let current_workspace: *mut Node;
         {
             if let Some(_) = self.get_workspace_by_name(name) {
