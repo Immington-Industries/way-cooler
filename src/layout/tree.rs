@@ -14,22 +14,21 @@ pub type TreeResult = Result<MutexGuard<'static, Tree>, TreeErr>;
 
 const ERR_BAD_TREE: &'static str = "Layout tree was in an invalid configuration";
 
+pub struct Tree {
+    root: Node,
+    active_container: *const Node,
+}
+
+unsafe impl Send for Tree {}
+
 lazy_static! {
     static ref TREE: Mutex<Tree> = {
         Mutex::new(Tree{
             root: Node::new(Container::new_root()),
-            active_container: ptr::null_mut(),
+            active_container: ptr::null(),
         })
     };
 }
-
-
-pub struct Tree {
-    root: Node,
-    active_container: *mut Node,
-}
-
-unsafe impl Send for Tree {}
 
 impl Tree {
 
@@ -40,8 +39,11 @@ impl Tree {
             // NOTE Assumes workspace exists, fix this
             // NOTE Should not do this, because floating windows
             // Should do an if let
-            let container = Some(sub_container.remove_from_parent()
+            // TODO Get the mutable version of that container so this compiles
+
+            /*let container = Some(sub_container.remove_from_parent()
                 .expect("Could not remove container, was not part of tree"));
+            */
         }
         if let Some(container) = container {
             if let Some(workspace) = self.get_workspace_by_name(name) {
@@ -62,7 +64,7 @@ impl Tree {
             warn!("Not current active container, cannot switch workspace");
             return;
         }
-        let current_workspace: *mut Node;
+        let current_workspace: *const Node;
         {
             if let Some(_) = self.get_workspace_by_name(name) {
                 trace!("Found workspace {}", name);
@@ -84,19 +86,19 @@ impl Tree {
                 WlcView::root().focus();
             }
             // Update the tree's pointer to the currently focused container
-            current_workspace = &mut new_current_workspace.get_children_mut()[0] as *mut Node;
+            current_workspace = &mut new_current_workspace.get_children_mut()[0] as *const Node;
         }
         self.active_container = current_workspace;
     }
 
     /// Returns the currently viewed container.
     /// If multiple views are selected, the parent container they share is returned
-    pub fn get_active_container(&self) -> Option<&mut Node> {
+    pub fn get_active_container(&self) -> Option<&Node> {
         if self.active_container.is_null() {
             None
         } else {
             unsafe {
-                Some(&mut *self.active_container)
+                Some(&*self.active_container)
             }
         }
     }
@@ -219,7 +221,7 @@ impl Tree {
             }
         };
         if ! maybe_new_view.is_null() {
-            self.active_container = maybe_new_view as *mut Node;
+            self.active_container = maybe_new_view as *const Node;
         }
     }
 
