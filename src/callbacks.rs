@@ -23,7 +23,6 @@ pub extern fn output_created(output: WlcOutput) -> bool {
     {
         if let Ok(mut tree) = tree::try_lock_tree() {
             tree.add_output(output.clone());
-            tree.add_workspace("1".to_string());
             tree.switch_workspace(&"1");
             true
         } else {

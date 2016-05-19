@@ -14,6 +14,7 @@ pub type TreeResult = Result<MutexGuard<'static, Tree>, TreeErr>;
 
 const ERR_BAD_TREE: &'static str = "Layout tree was in an invalid configuration";
 
+#[derive(Debug)]
 pub struct Tree {
     root: Node,
     active_container: *const Node,
@@ -60,7 +61,7 @@ impl Tree {
             old_workspace.set_visibility(false);
         }
         if self.active_container.is_null() {
-            warn!("Not current active container, cannot switch workspace");
+            warn!("No current active container, cannot switch workspace");
             return;
         }
         let current_workspace: *const Node;
@@ -105,7 +106,11 @@ impl Tree {
     /// Get the monitor (output) that the active container is located on
     pub fn get_active_output(&self) -> Option<&mut Node> {
         if let Some(node) = self.get_active_container() {
-            node.get_ancestor_of_type(ContainerType::Output)
+            if node.get_val().get_type() == ContainerType::Output {
+                Some(node.as_mut().expect("Could not get mut of a node"))
+            } else {
+                node.get_ancestor_of_type(ContainerType::Output)
+            }
         } else {
             None
         }
@@ -146,14 +151,25 @@ impl Tree {
     /// Make a new output container with the given WlcOutput.
     /// This is done when a new monitor is added
     pub fn add_output(&mut self, wlc_output: WlcOutput) {
+        trace!("Adding new output with WlcOutput: {:?}", wlc_output);
         match self.root.new_child(Container::new_output(wlc_output)) {
-            Ok(_) => {},
-            Err(e) => error!("Could not add output: {:?}", e),
+            Ok(output) => {
+                // Need to set active container to this output so that
+                // add_workspace know where to put the new workspace
+                self.active_container = output as *const Node;
+            },
+            Err(e) => {
+                error!("Could not add output: {:?}", e);
+                return;
+            }
         }
+        // NOTE Should probably not be "1", should be the next unclaimed number
+        self.add_workspace("1".to_string());
     }
 
     /// Make a new workspace container with the given name.
     pub fn add_workspace(&mut self, name: String) {
+        let mut new_active_container: *const Node = ptr::null();
         if let Some(output) = self.get_active_output() {
             let size = output.get_val().get_geometry()
                 .expect("Output did not have a geometry").size;
@@ -166,12 +182,17 @@ impl Tree {
                         size: size,
                         origin: Point { x: 0, y: 0}
                     };
-                    if let Err(e) = workspace.new_child(Container::new_container(geometry)) {
-                        error!("Could not add container to workspace: {:?}",e );
-                    }
+                    match workspace.new_child(Container::new_container(geometry)) {
+                        Err(e) => error!("Could not add container to workspace: {:?}",e ),
+                        // New active container should be this container of the new workspace
+                        Ok(container) => new_active_container = container as *const Node,
+                    };
                 },
                 Err(e) => error!("Could not add workspace: {:?}", e),
             }
+        }
+        if ! new_active_container.is_null() {
+            self.active_container = new_active_container;
         }
     }
 
