@@ -186,6 +186,22 @@ impl Node {
             child.set_visibility(visibility);
         }
     }
+
+    /// Attempts to get the Node as a mutable reference by going through it's
+    /// child to get a mutable reference to it.
+    pub fn as_mut<'a>(&'a self) -> Option<&'a mut Node> {
+        let maybe_parent = self.get_parent();
+        if maybe_parent.is_none() {
+            return None;
+        }
+        let parent: &'a mut Node = self.get_parent().unwrap();
+        for child in parent.get_children_mut() {
+            if *child == *self {
+                return Some(child);
+            }
+        };
+        return None;
+    }
 }
 
 impl Drop for Node {

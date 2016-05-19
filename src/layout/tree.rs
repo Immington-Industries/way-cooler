@@ -35,15 +35,14 @@ impl Tree {
     /// Moves the current active container to a new workspace
     pub fn move_container_to_workspace(&mut self, name: &str) {
         let container: Option<Node> = None;
-        if let Some(sub_container) = self.get_active_container() {
+        if let Some(sub_container) = self.get_active_container()
+            .and_then(Node::as_mut) {
             // NOTE Assumes workspace exists, fix this
             // NOTE Should not do this, because floating windows
             // Should do an if let
-            // TODO Get the mutable version of that container so this compiles
 
-            /*let container = Some(sub_container.remove_from_parent()
+            let container = Some(sub_container.remove_from_parent()
                 .expect("Could not remove container, was not part of tree"));
-            */
         }
         if let Some(container) = container {
             if let Some(workspace) = self.get_workspace_by_name(name) {
