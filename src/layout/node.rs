@@ -55,7 +55,7 @@ impl Node {
 
     /// Tries to get an ancestor of the requested type
     pub fn get_ancestor_of_type(&self, container_type: ContainerType)
-                                -> Option<&mut Node> {
+                                -> Option<&Node> {
         let mut maybe_parent = self.get_parent();
         loop {
             if let Some(parent) = maybe_parent {
@@ -189,18 +189,22 @@ impl Node {
 
     /// Attempts to get the Node as a mutable reference by going through it's
     /// child to get a mutable reference to it.
-    pub fn as_mut<'a>(&'a self) -> Option<&'a mut Node> {
+    pub fn as_mut<'a>(&'a self) -> &'a mut Node {
         let maybe_parent = self.get_parent();
-        if maybe_parent.is_none() {
-            return None;
+        if maybe_parent.is_some() {
+            let parent: &'a mut Node = self.get_parent().unwrap();
+                for child in parent.get_children_mut() {
+                    if *child == *self {
+                        return child;
+                    }
+                };
         }
-        let parent: &'a mut Node = self.get_parent().unwrap();
-        for child in parent.get_children_mut() {
-            if *child == *self {
-                return Some(child);
-            }
-        };
-        return None;
+        // Error, give reason why
+        if self.get_val().get_type() == ContainerType::Root {
+            panic!("Tried to take as_mut of root")
+        } else {
+            panic!("Tried to take as_mut of a node not in the tree")
+        }
     }
 }
 
