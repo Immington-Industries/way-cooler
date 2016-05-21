@@ -210,9 +210,14 @@ impl Node {
 
 impl Drop for Node {
     fn drop(&mut self) {
-        let children: &mut Vec<Node> = &mut self.children;
-        for mut child in children {
-            child.parent = ptr::null_mut();
+        // We own the view, so we close it if we lose the Node
+        if self.get_container_type() == ContainerType::View {
+            if let Some(handle) = self.get_val().get_handle() {
+                match handle {
+                    Handle::View(view) => view.close(),
+                    _ => {},
+                }
+            }
         }
     }
 }
