@@ -152,7 +152,7 @@ impl Tree {
         }
         if let Some(workspace) = self.get_workspace_by_name(name) {
             let new_parent_container = &mut workspace.as_mut().get_children_mut()[0];
-            new_parent_container.new_child(moved_container.get_val().clone())
+            new_parent_container.add_child(moved_container)
                 .expect("Could not moved container to other a workspace");
             trace!("Added previously removed container to {:?} in workspace {}",
                     new_parent_container,

@@ -42,6 +42,19 @@ impl Node {
         Ok(&mut self.children[last_ix])
     }
 
+    /// Adds an already existing Node to the tree
+    pub fn add_child(&mut self, mut node: Node) -> Result<&mut Node, String> {
+        if ! self.val.get_type().can_have_child(node.get_val().get_type()) {
+            return Err(format!("{:?}({:?}) cannot be a child of {:?}({:?})",
+                               node.get_val(), node.get_val().get_type(),
+                               self.val, self.val.get_type()));
+        }
+        node.parent = self as *mut Node;
+        self.children.push(node);
+        let last_ix = self.children.len() - 1;
+        Ok(&mut self.children[last_ix])
+    }
+
     /// Whether this node has a (currently-reachable) parent
     #[allow(dead_code)]
     pub fn has_parent(&self) -> bool {
