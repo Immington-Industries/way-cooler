@@ -213,8 +213,14 @@ impl Tree {
         self.active_container = new_active_container;
     }
 
-    /// Returns the currently viewed container.
-    /// If multiple views are selected, the parent container they share is returned
+    /// Returns the currently active container.
+    ///
+    /// Note that this might be at certain times this might simply be
+    /// an Output or a Workspace to ensure other methods work.
+    ///
+    /// NOTE This should change because a nice invariant to have would
+    /// be that `get_active_container` only returns either a container
+    /// or a view, since those are the only nodes that can be "active".
     pub fn get_active_container(&self) -> Option<&Node> {
         if self.active_container.is_null() {
             None
@@ -274,7 +280,11 @@ impl Tree {
     }
 
     /// Make a new output container with the given WlcOutput.
-    /// This is done when a new monitor is added
+    ///
+    /// A new workspace is automatically added to the output, to ensure
+    /// consistency with the tree. By default, it sets this new workspace to
+    /// be workspace "1". This will later change to be the first available
+    /// workspace if using i3-style workspaces.
     pub fn add_output(&mut self, wlc_output: WlcOutput) {
         trace!("Adding new output with WlcOutput: {:?}", wlc_output);
         match self.root.new_child(Container::new_output(wlc_output)) {
@@ -293,6 +303,13 @@ impl Tree {
     }
 
     /// Make a new workspace container with the given name.
+    ///
+    /// A new container is automatically added to the workspace, to ensure
+    /// consistency with the tree. This container has no children, and should
+    /// not be moved.
+    ///
+    /// NOTE Consider changing it to be a different type, something that will not and can
+    /// not be moved? Another container type to check against then?
     pub fn add_workspace(&mut self, name: String) -> Option<&Node> {
         let mut new_active_container: *const Node = ptr::null();
         if let Some(output) = self.get_active_output() {
@@ -374,6 +391,12 @@ impl Tree {
     }
 
     /// Remove the view container with the given view
+    ///
+    /// If this is the only view of that container, and that container
+    /// is not the only one in the workspace, then that container is also
+    /// removed.
+    ///
+    /// NOTE Implement \^\^\^
     pub fn remove_view(&self, wlc_view: WlcView) {
         if let Some(view) = self.root.find_view_by_handle(&wlc_view) {
             let parent = view.get_parent().expect(ERR_BAD_TREE);
@@ -382,6 +405,8 @@ impl Tree {
     }
 }
 
+/// Attempts to lock the tree. If the Result is Err, then a thread that
+/// previously had the lock panicked and potentially left the tree in a bad state
 pub fn try_lock_tree() -> TreeResult {
     trace!("Locking the tree!");
     TREE.try_lock()
