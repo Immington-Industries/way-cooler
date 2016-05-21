@@ -35,15 +35,39 @@ impl Tree {
 
     /// Moves the current active container to a new workspace
     pub fn move_container_to_workspace(&mut self, name: &str) {
-        info!("Moving container {:?} to workspace {}", *self, name);
         if self.get_active_container().is_none() {
             return;
         }
+        if let Some(workspace) = self.get_active_workspace() {
+            if workspace.get_children().len() == 1 {
+                if workspace.get_children()[0].get_children().len() == 0 {
+                    warn!("Tried to move a container not made by the user");
+                    return;
+                }
+            }
+            if workspace.get_val().get_name().unwrap() == name {
+                warn!("Tried to switch to already current workspace");
+                return;
+            }
+        }
+        match self.get_active_container().unwrap().get_val().get_type() {
+            //ContainerType::Container => {},
+            ContainerType::View => {},
+            _ => {
+                warn!("Tried to switch workspace on a non-view/container");
+                return
+            }
+        }
+        if self.get_workspace_by_name(name).is_none() {
+            self.add_workspace(name.to_string());
+        }
+        info!("Moving container {:?} to workspace {}", self.get_active_container(), name);
         let new_active_container = self.get_active_container().unwrap().get_parent().unwrap()
             as *const Node;
         let moved_container: Node;
         {
             let container = self.get_active_container().unwrap().as_mut();
+
             // Make view invisible, switch focus
             {
                 let parent = container.get_parent().expect("Had no parent");
@@ -75,11 +99,10 @@ impl Tree {
             moved_container = container.remove_from_parent()
                 .expect("Could not remove container, was not part of tree");
             container.set_visibility(false);
-            trace!("Removed container {:?}", *self);
+            trace!("Removed container {:?}", moved_container);
         }
         if let Some(workspace) = self.get_workspace_by_name(name) {
-            // Assume workspace has a container, that's an invariant
-            let new_parent_container = &mut workspace.get_children_mut()[0];
+            let new_parent_container = &mut workspace.as_mut().get_children_mut()[0];
             new_parent_container.new_child(moved_container.get_val().clone())
                 .expect("Could not moved container to other a workspace");
             trace!("Added previously removed container to {:?} in workspace {}",
@@ -91,16 +114,15 @@ impl Tree {
 
     /// Switch to the workspace with the give name
     pub fn switch_workspace(&mut self, name: &str ) {
-        trace!("Switching to workspace {}", name);
-        warn!("Current active container: {:?}", self.get_active_container());
+        if self.active_container.is_null() {
+            warn!("No current active container, cannot switch workspace");
+            return;
+        }
         if let Some(old_workspace) = self.get_active_workspace() {
+            trace!("Switching to workspace {}", name);
             old_workspace.as_mut().set_visibility(false);
         } else {
             warn!("Could not find old workspace, could not set invisible");
-            return;
-        }
-        if self.active_container.is_null() {
-            warn!("No current active container, cannot switch workspace");
             return;
         }
         if let Some(_) = self.get_workspace_by_name(name) {
@@ -118,7 +140,7 @@ impl Tree {
                 self.add_workspace(name.to_string());
             }
             let new_current_workspace = self.get_workspace_by_name_mut(name)
-                .expect(ERR_BAD_TREE);
+                .expect(ERR_BAD_TREE).as_mut();
             new_current_workspace.set_visibility(true);
             /* Set the first view to be focused, so the screen refreshes itself */
             if new_current_workspace.get_children()[0].get_children().len() > 0 {
@@ -181,7 +203,7 @@ impl Tree {
     }
 
     /// Find the workspace node that has the given name
-    pub fn get_workspace_by_name(&mut self, name: &str) -> Option<&mut Node> {
+    pub fn get_workspace_by_name(&mut self, name: &str) -> Option<&Node> {
         for child in self.root.get_children_mut()[0].get_children_mut() {
             if child.get_val().get_name().expect(ERR_BAD_TREE) != name {
                 continue
@@ -192,7 +214,7 @@ impl Tree {
     }
 
     /// Find the workspace node that has the given name, with a mutable reference
-    pub fn get_workspace_by_name_mut(&mut self, name: &str) -> Option<&mut Node> {
+    pub fn get_workspace_by_name_mut(&mut self, name: &str) -> Option<&Node> {
         for child in self.root.get_children_mut()[0].get_children_mut() {
             if child.get_val().get_name().expect(ERR_BAD_TREE) != name {
                 continue
@@ -218,11 +240,11 @@ impl Tree {
             }
         }
         // NOTE Should probably not be "1", should be the next unclaimed number
-        self.add_workspace("1".to_string());
+        self.active_container = self.add_workspace("1".to_string()).unwrap() as *const Node;
     }
 
     /// Make a new workspace container with the given name.
-    pub fn add_workspace(&mut self, name: String) {
+    pub fn add_workspace(&mut self, name: String) -> Option<&Node> {
         let mut new_active_container: *const Node = ptr::null();
         if let Some(output) = self.get_active_output() {
             let size = output.get_val().get_geometry()
@@ -241,13 +263,14 @@ impl Tree {
                         // New active container should be this container of the new workspace
                         Ok(container) => new_active_container = container as *const Node,
                     };
+                    return Some(workspace);
                 },
                 Err(e) => error!("Could not add workspace: {:?}", e),
             }
+        } else {
+            warn!("Could not get active output");
         }
-        if ! new_active_container.is_null() {
-            self.active_container = new_active_container;
-        }
+        None
     }
 
     /// Make a new view container with the given WlcView, and adds it to
@@ -287,7 +310,9 @@ impl Tree {
             }
             let container = &mut current_workspace.as_mut().get_children_mut()[0];
             match container.new_child(Container::new_view(wlc_view)) {
-                Ok(view_node) => maybe_new_view = view_node as *const Node,
+                Ok(view_node) => {
+                    maybe_new_view = view_node as *const Node;
+                },
                 Err(e) => {
                     error!("Could not add view to current workspace: {:?}", e);
                     return;
