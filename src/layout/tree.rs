@@ -374,7 +374,7 @@ impl Tree {
     }
 
     /// Remove the view container with the given view
-    pub fn remove_view(&self, wlc_view: &WlcView) {
+    pub fn remove_view(&self, wlc_view: WlcView) {
         if let Some(view) = self.root.find_view_by_handle(&wlc_view) {
             let parent = view.get_parent().expect(ERR_BAD_TREE);
             parent.remove_child(view);
