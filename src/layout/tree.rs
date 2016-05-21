@@ -188,7 +188,7 @@ impl Tree {
                 trace!("Adding workspace {}", name);
                 self.add_workspace(name.to_string());
             }
-            let new_current_workspace = self.get_workspace_by_name_mut(name)
+            let new_current_workspace = self.get_workspace_by_name(name)
                 .expect(ERR_BAD_TREE).as_mut();
             new_current_workspace.set_visibility(true);
             /* Set the first view to be focused, so the screen refreshes itself */
@@ -259,17 +259,6 @@ impl Tree {
 
     /// Find the workspace node that has the given name
     pub fn get_workspace_by_name(&mut self, name: &str) -> Option<&Node> {
-        for child in self.root.get_children_mut()[0].get_children_mut() {
-            if child.get_val().get_name().expect(ERR_BAD_TREE) != name {
-                continue
-            }
-            return Some(child);
-        }
-        return None
-    }
-
-    /// Find the workspace node that has the given name, with a mutable reference
-    pub fn get_workspace_by_name_mut(&mut self, name: &str) -> Option<&Node> {
         for child in self.root.get_children_mut()[0].get_children_mut() {
             if child.get_val().get_name().expect(ERR_BAD_TREE) != name {
                 continue
