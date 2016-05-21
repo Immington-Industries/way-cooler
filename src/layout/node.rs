@@ -202,7 +202,12 @@ impl Node {
 
     /// Attempts to get the Node as a mutable reference by going through it's
     /// child to get a mutable reference to it.
-    pub fn as_mut<'a>(&'a self) -> &'a mut Node {
+    ///
+    /// # Unsafety
+    /// The borrow checker can not properly infer that you are taking the Node
+    /// as both mutable an immutable, so it is possible to invalidate the
+    /// reference that you are using to call this method.
+    pub unsafe fn as_mut<'a>(&'a self) -> &'a mut Node {
         let maybe_parent = self.get_parent();
         if maybe_parent.is_some() {
             let parent: &'a mut Node = self.get_parent().unwrap();
