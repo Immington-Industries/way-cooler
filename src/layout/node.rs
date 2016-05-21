@@ -83,6 +83,25 @@ impl Node {
         }
     }
 
+    /// Tries to get a descendant of the requested type
+    pub fn get_descendant_of_type(&self, container_type: ContainerType)
+                                 -> Option<&Node> {
+        let current_node = self;
+        loop {
+            if current_node.get_children().len() > 0 {
+                for child in current_node.get_children() {
+                    if let Some(descendant) = child.get_descendant_of_type(container_type) {
+                        return Some(descendant)
+                    }
+                }
+            } else if current_node.get_container_type() == container_type {
+                return Some(current_node)
+            } else {
+                return None
+            }
+        }
+    }
+
     /// Gets a node by handle
     pub fn find_view_by_handle(&self, view_handle: &WlcView) -> Option<&Node>{
         match self.get_val() {

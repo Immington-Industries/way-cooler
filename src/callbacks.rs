@@ -69,7 +69,7 @@ pub extern fn view_created(view: WlcView) -> bool {
 
 pub extern fn view_destroyed(view: WlcView) {
     trace!("view_destroyed: {:?}", view);
-    if let Ok(tree) = tree::try_lock_tree() {
+    if let Ok(mut tree) = tree::try_lock_tree() {
         tree.remove_view(view);
     } else {
         warn!("Could not delete view {:?}", view);
