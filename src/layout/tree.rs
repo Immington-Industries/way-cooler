@@ -14,6 +14,55 @@ pub type TreeResult = Result<MutexGuard<'static, Tree>, TreeErr>;
 
 const ERR_BAD_TREE: &'static str = "Layout tree was in an invalid configuration";
 
+// NOTE Make an actual image of this, embed in documentation
+/* An example Tree:
+
+      Root
+        |
+    ____|____
+   /         \
+   |         |
+ Output    Output
+   |         |
+ Workspace   |
+   |        / \
+   |       /   \
+   | Workspace Workspace
+   |     |         |
+   |  Container Container
+ Container
+    |
+   / \
+  /   \
+  |    \
+  |     \
+  |      \
+  |       \
+ Container \
+     |      \
+   View    View
+ */
+
+/// A Tree of Nodes.
+///
+/// There are various invariants that the tree upholds:
+///
+///   + Root
+///       - There is only one Root
+///       - The root can only have Outputs (monitors) as children
+///   + Output
+///       - An Output must have at least one Workspace associated with it
+///       - An Output must be associated with a WlcOutput (real monitor)
+///       - An Output can only have Workspaces as children
+///   + Workspace
+///       - A Workspace must have at least one Container, even if it doesn't
+///         contain any views
+///       - A Workspace can only have Containers as children
+///   + Container
+///       - A Container can only have other Containers or Views as children
+///   + View
+///       - A View must be associated with a WlcView
+///       - A View cannot have any children
 #[derive(Debug)]
 pub struct Tree {
     root: Node,
