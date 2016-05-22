@@ -320,11 +320,11 @@ impl Tree {
     /// workspace if using i3-style workspaces.
     pub fn add_output(&mut self, wlc_output: WlcOutput) {
         trace!("Adding new output with WlcOutput: {:?}", wlc_output);
+        let mut new_active_container: *const Node = ptr::null();
         match self.root.new_child(Container::new_output(wlc_output)) {
             Ok(output) => {
-                // Need to set active container to this output so that
-                // add_workspace know where to put the new workspace
-                self.active_container = output as *const Node;
+                new_active_container = Tree::init_workspace("1".to_string(), output).unwrap()
+                    as *const Node;
             },
             Err(e) => {
                 error!("Could not add output: {:?}", e);
@@ -332,10 +332,12 @@ impl Tree {
             }
         }
         // NOTE Should probably not be "1", should be the next unclaimed number
-        self.active_container = self.add_workspace("1".to_string()).unwrap() as *const Node;
+        if self.get_active_container().is_none() && new_active_container != ptr::null() {
+            self.active_container = new_active_container;
+        }
     }
 
-    /// Make a new workspace container with the given name.
+    /// Make a new workspace container with the given name on the current active output.
     ///
     /// A new container is automatically added to the workspace, to ensure
     /// consistency with the tree. This container has no children, and should
@@ -344,30 +346,38 @@ impl Tree {
     /// NOTE Consider changing it to be a different type, something that will not and can
     /// not be moved? Another container type to check against then?
     pub fn add_workspace(&mut self, name: String) -> Option<&Node> {
-        let mut new_active_container: *const Node = ptr::null();
         if let Some(output) = self.get_active_output_mut() {
-            let size = output.get_val().get_geometry()
-                .expect("Output did not have a geometry").size;
-            let workspace = Container::new_workspace(name.to_string(),
-                                                     size.clone());
-            match output.new_child(workspace) {
-                Ok(workspace) => {
-                    trace!("Added workspace {:?}", workspace);
-                    let geometry = Geometry {
-                        size: size,
-                        origin: Point { x: 0, y: 0}
-                    };
-                    match workspace.new_child(Container::new_container(geometry)) {
-                        Err(e) => error!("Could not add container to workspace: {:?}",e ),
-                        // New active container should be this container of the new workspace
-                        Ok(container) => new_active_container = container as *const Node,
-                    };
-                    return Some(workspace);
-                },
-                Err(e) => error!("Could not add workspace: {:?}", e),
-            }
+            return Tree::init_workspace(name, output)
         } else {
             warn!("Could not get active output");
+        }
+        None
+    }
+
+    /// Initialize a workspace with the given name on some output.
+    ///
+    /// A new container is automatically added to the workspace, to ensure
+    /// consistency with the tree. This container has no children, and should
+    /// not be moved.
+    fn init_workspace<'a>(name: String, output: &'a mut Node) -> Option<&'a Node> {
+        let size = output.get_val().get_geometry()
+            .expect("Output did not have a geometry").size;
+        let workspace = Container::new_workspace(name.to_string(),
+                                                    size.clone());
+        match output.new_child(workspace) {
+            Ok(workspace) => {
+                trace!("Added workspace {:?}", workspace);
+                let geometry = Geometry {
+                    size: size,
+                    origin: Point { x: 0, y: 0}
+                };
+                match workspace.new_child(Container::new_container(geometry)) {
+                    Ok(container) => { return Some(container) },
+                    Err(e) => error!("Could not add container to workspace: {:?}",e ),
+                    // New active container should be this container of the new workspace
+                };
+            },
+            Err(e) => error!("Could not add workspace: {:?}", e),
         }
         None
     }
