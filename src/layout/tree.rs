@@ -83,68 +83,42 @@ impl Tree {
 
     /// Moves the current active container to a new workspace
     pub fn move_container_to_workspace(&mut self, name: &str) {
+        // Ensure we are focused on something
         if self.get_active_container().is_none() {
             return;
         }
         if let Some(workspace) = self.get_active_workspace() {
+            // Ensure we aren't trying to move nothing
             if workspace.get_children().len() == 1 {
                 if workspace.get_children()[0].get_children().len() == 0 {
                     warn!("Tried to move a container not made by the user");
                     return;
                 }
             }
+            // Ensure we are moving to a new workspace
             if workspace.get_val().get_name().unwrap() == name {
                 warn!("Tried to switch to already current workspace");
                 return;
             }
         }
+        // Ensure get_active_container is giving us a view or a container
         match self.get_active_container().unwrap().get_val().get_type() {
-            //ContainerType::Container => {},
-            ContainerType::View => {},
+            ContainerType::Container | ContainerType::View => {},
             _ => {
                 warn!("Tried to switch workspace on a non-view/container");
                 return
             }
         }
+        // If workspace doesn't exist, add it
         if self.get_workspace_by_name(name).is_none() {
             self.add_workspace(name.to_string());
         }
         info!("Moving container {:?} to workspace {}", self.get_active_container(), name);
-        {
-            let container = self.get_active_container().unwrap();
-
-            // Make view invisible, switch focus
-            {
-                let parent = container.get_parent().expect("Had no parent");
-                // There is another view we can focus on
-                if parent.get_children().len() > 1 {
-                    trace!("Attempting to focus on a view");
-                    let mut children_pool: Vec<&Node>  = parent.get_children().iter()
-                        .filter(|child| *child != container).collect();
-                    while children_pool.len() > 0 {
-                        let child = children_pool.pop().unwrap();
-                        if child.get_val().get_type() == ContainerType::View {
-                            trace!("Focused on a view");
-                            match child.get_val().get_handle().unwrap() {
-                                Handle::View(view) => view.focus(),
-                                _ => panic!("Expect WlcView, got WlcOutput"),
-                            }
-                            break;
-                        } else {
-                            let more_children: Vec<&Node> = child.get_children().iter()
-                                .collect();
-                            children_pool.extend(more_children);
-                        }
-                    }
-                } else {
-                    trace!("Focusing on root, because no other views");
-                    WlcView::root().focus();
-                }
-            }
-        }
         let moved_container: Node;
         let parent: *const Node;
-        // Move the container out
+        // Move the container out (and set it to be invisible),
+        // get the moved_container to be placed into new workspace
+        // and parent so that we can get the new active container on this workspace
         {
             let mut_container = self.get_active_container_mut().unwrap();
             parent = mut_container.get_parent().unwrap() as *const Node;
@@ -153,16 +127,23 @@ impl Tree {
             mut_container.set_visibility(false);
             trace!("Removed container {:?}", moved_container);
         }
-        unsafe { self.update_removed_active_container(&*parent); }
-        // Put into the new workspace
+        // Put container into the new workspace
         if let Some(workspace) = self.get_workspace_by_name_mut(name) {
             let new_parent_container = &mut workspace.get_children_mut()[0];
             new_parent_container.add_child(moved_container)
                 .expect("Could not moved container to other a workspace");
             trace!("Added previously removed container to {:?} in workspace {}",
-                    new_parent_container,
-                name);
+                   new_parent_container,
+                   name);
         }
+        unsafe { self.update_removed_active_container(&*parent); }
+        // Update the focus to the new active container
+        match *self.get_active_container()
+            .and_then(|container| Some(container.get_val())).unwrap() {
+                Container::View { ref handle, ..} => handle.focus(),
+                Container::Container { .. } => WlcView::root().focus(),
+                _ => panic!("Active Container was not a view or container")
+            }
     }
 
     /// Switch to the workspace with the give name
