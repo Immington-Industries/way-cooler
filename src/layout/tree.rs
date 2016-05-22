@@ -225,15 +225,15 @@ impl Tree {
     /// View or a Container
     pub fn set_active_container(&mut self, node: &Node) -> Result<(), ()> {
         match node.get_val().get_type() {
-            ContainerType::View => {},
-            ContainerType::Container => {},
+            ContainerType::View | ContainerType::Container => {
+                self.active_container = node as *const Node;
+                Ok(())
+            },
             _ => {
                 error!("Tried to set {:?} as active container", node);
                 return Err(());
             }
         }
-        self.active_container = node as *const Node;
-        Ok(())
     }
 
     /// Returns the currently active container.
