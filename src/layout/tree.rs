@@ -171,6 +171,7 @@ impl Tree {
             warn!("No current active container, cannot switch workspace");
             return;
         }
+        // Set the old workspace to be invisible
         if let Some(old_workspace) = self.get_active_workspace_mut() {
             trace!("Switching to workspace {}", name);
             old_workspace.set_visibility(false);
@@ -178,6 +179,7 @@ impl Tree {
             warn!("Could not find old workspace, could not set invisible");
             return;
         }
+        // If the workspace we are switching to doesn't exist, addi t
         if let Some(_) = self.get_workspace_by_name(name) {
             trace!("Found workspace {}", name);
         } else {
@@ -186,12 +188,7 @@ impl Tree {
         }
         let new_active_container: *const Node;
         {
-            if let Some(_) = self.get_workspace_by_name(name) {
-                trace!("Found workspace {}", name);
-            } else {
-                trace!("Adding workspace {}", name);
-                self.add_workspace(name.to_string());
-            }
+            /* Get the new workspace, make it visible */
             let new_current_workspace = self.get_workspace_by_name_mut(name)
                 .expect(ERR_BAD_TREE);
             new_current_workspace.set_visibility(true);
