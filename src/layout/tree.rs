@@ -111,9 +111,6 @@ impl Tree {
             self.add_workspace(name.to_string());
         }
         info!("Moving container {:?} to workspace {}", self.get_active_container(), name);
-        // NOTE Fix this so it focuses either sole container or the next view
-        let new_active_container = self.get_active_container().unwrap().get_parent().unwrap()
-            as *const Node;
         {
             let container = self.get_active_container().unwrap();
 
@@ -147,14 +144,17 @@ impl Tree {
             }
         }
         let moved_container: Node;
+        let parent: *const Node;
         // Move the container out
         {
             let mut_container = self.get_active_container_mut().unwrap();
+            parent = mut_container.get_parent().unwrap() as *const Node;
             moved_container = mut_container.remove_from_parent()
                 .expect("Could not remove container, was not part of tree");
             mut_container.set_visibility(false);
             trace!("Removed container {:?}", moved_container);
         }
+        unsafe { self.update_removed_active_container(&*parent); }
         // Put into the new workspace
         if let Some(workspace) = self.get_workspace_by_name_mut(name) {
             let new_parent_container = &mut workspace.get_children_mut()[0];
@@ -164,7 +164,6 @@ impl Tree {
                     new_parent_container,
                 name);
         }
-        self.active_container = new_active_container;
     }
 
     /// Switch to the workspace with the give name
@@ -209,14 +208,33 @@ impl Tree {
                 new_active_container = view_container as *const Node;
             }
             /* If there is no view in the new workspace, just set the focused container
-            to be the workspace */
+            to be the workspace's only container */
             else {
-                new_active_container = new_current_workspace as *const Node;
+                let child_container = &new_current_workspace.get_children()[0];
+                new_active_container = child_container as *const Node;
                 WlcView::root().focus();
             }
         }
         // Update the tree's pointer to the currently focused container
-        self.active_container = new_active_container;
+        unsafe { self.set_active_container(&*new_active_container).unwrap(); }
+    }
+
+
+    /// Sets the currently active container.
+    ///
+    /// This function will return an Err if the container is not either a
+    /// View or a Container
+    pub fn set_active_container(&mut self, node: &Node) -> Result<(), ()> {
+        match node.get_val().get_type() {
+            ContainerType::View => {},
+            ContainerType::Container => {},
+            _ => {
+                error!("Tried to set {:?} as active container", node);
+                return Err(());
+            }
+        }
+        self.active_container = node as *const Node;
+        Ok(())
     }
 
     /// Returns the currently active container.
@@ -333,7 +351,7 @@ impl Tree {
         }
         // NOTE Should probably not be "1", should be the next unclaimed number
         if self.get_active_container().is_none() && new_active_container != ptr::null() {
-            self.active_container = new_active_container;
+            unsafe {self.set_active_container(&*new_active_container).unwrap(); }
         }
     }
 
@@ -400,7 +418,7 @@ impl Tree {
             }
         };
         if ! maybe_new_view.is_null() {
-            self.active_container = maybe_new_view as *const Node;
+            unsafe { self.set_active_container(&*maybe_new_view).unwrap(); }
         }
     }
 
@@ -412,46 +430,65 @@ impl Tree {
     ///
     /// NOTE Implement \^\^\^
     pub fn remove_view(&mut self, wlc_view: WlcView) {
+        let mut maybe_parent: *const Node = ptr::null();
         if let Some(view) = self.root.find_view_by_handle(&wlc_view) {
-                // Ensure that we are not invalidating the active_container pointer
-                if (view as *const Node) == self.active_container {
-                    trace!("Correct active container");
-                    // Since we are just removing a single view,
-                    // keep going up to ancestors to find a view
-                    // not being invalidated
-                    let mut parent = view.get_ancestor_of_type(ContainerType::Container).unwrap();
-                    // Remove node before we search, so that we can't accidentally
-                    // re-select it when traversing tree
-                    unsafe { view.as_mut().remove_from_parent(); }
+            // Ensure that we are not invalidating the active_container pointer
+            if (view as *const Node) == self.active_container {
+                // Since we are just removing a single view,
+                // keep going up to ancestors to find a view
+                // not being invalidated
+                let parent = view.get_ancestor_of_type(ContainerType::Container).unwrap();
+                maybe_parent = parent as *const Node;
+                // Remove node before we search, so that we can't accidentally
+                // re-select it when traversing tree
+                unsafe { view.as_mut().remove_from_parent(); }
+            } else {
+                // Remove node
+                unsafe { view.as_mut().remove_from_parent(); }
+            }
+        }
+        if ! maybe_parent.is_null() {
+            unsafe { self.update_removed_active_container(&*maybe_parent); }
+        }
+    }
 
-                    // NOTE Need to make parent a option, like in get_ancestor_of_type
-                    let mut active_container_set = false;
-                    while parent.get_container_type() != ContainerType::Workspace {
-                        if let Some(view) = parent.get_descendant_of_type(ContainerType::View) {
-                            self.active_container = view as *const Node;
-                            trace!("Active container set to view {:?}", view);
-                            active_container_set = true;
-                            break;
-                        }
-                    let maybe_parent = parent.get_ancestor_of_type(ContainerType::Container);
-                        if maybe_parent.is_none() {
-                            parent = parent.get_ancestor_of_type(ContainerType::Workspace).unwrap();
-                        } else {
-                            parent = maybe_parent.unwrap();
-                        }
-                    }
-                    // We didn't find another view, set to the default container
-                    if !active_container_set && parent.get_container_type() == ContainerType::Workspace {
-                        let container = &parent.get_children()[0];
-                        trace!("Active container set to container {:?}", container);
-                        self.active_container = container as *const Node;
-                    }
-
-                } else {
-                    // Remove node
-                    unsafe { view.as_mut().remove_from_parent(); }
+    /// Updates the current active container to be the next container or view
+    /// to focus on after the previous view/container was moved/removed.
+    ///
+    /// A new view will tried to be set, starting with the siblings of the
+    /// removed node. If a view cannot be found there, it starts climbing the
+    /// tree until either a view is found or the workspace is (in which case
+    /// it set the active container to the root container of the workspace)
+    ///
+    /// Parent should be the parent of the node that was destroyed.
+    /// Note that the node should be destroyed already, otherwise this algorithm
+    /// will simply relocate the node to be destroyed and set it to be the active
+    /// container.
+    fn update_removed_active_container(&mut self, mut parent: &Node) {
+        let mut active_container_set = false;
+        while parent.get_container_type() != ContainerType::Workspace {
+            if let Some(view) = parent.get_descendant_of_type(ContainerType::View) {
+                match view.get_val().get_handle().expect("View had no handle") {
+                    Handle::View(view) => view.focus(),
+                    _ => panic!("View had an output handle")
                 }
-
+                unsafe {self.set_active_container(&*(view as *const Node)).unwrap()};
+                trace!("Active container set to view {:?}", view);
+                active_container_set = true;
+                break;
+            }
+        let maybe_parent = parent.get_ancestor_of_type(ContainerType::Container);
+            if maybe_parent.is_none() {
+                parent = parent.get_ancestor_of_type(ContainerType::Workspace).unwrap();
+            } else {
+                parent = maybe_parent.unwrap();
+            }
+        }
+        // We didn't find another view, set to the default container
+        if !active_container_set && parent.get_container_type() == ContainerType::Workspace {
+            let container = &parent.get_children()[0];
+            trace!("Active container set to container {:?}", container);
+            unsafe { self.set_active_container(&*(container as *const Node)).unwrap() };
         }
     }
 }
