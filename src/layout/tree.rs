@@ -6,7 +6,7 @@ use std::ptr;
 
 use super::container::{Container, Handle, ContainerType};
 use super::node::{Node};
-use super::super::rustwlc::{WlcView, WlcOutput, Geometry, Point, ResizeEdge};
+use super::super::rustwlc::{WlcView, WlcOutput, Geometry, Point};
 
 
 pub type TreeErr = TryLockError<MutexGuard<'static, Tree>>;
@@ -330,6 +330,7 @@ impl Tree {
     /// consistency with the tree. By default, it sets this new workspace to
     /// be workspace "1". This will later change to be the first available
     /// workspace if using i3-style workspaces.
+    #[allow(unused_assignments)]
     pub fn add_output(&mut self, wlc_output: WlcOutput) {
         trace!("Adding new output with WlcOutput: {:?}", wlc_output);
         let mut new_active_container: *const Node = ptr::null();
@@ -343,6 +344,7 @@ impl Tree {
                 return;
             }
         }
+        // If there is no active container, set it to this new one we just made
         if self.get_active_container().is_none() && new_active_container != ptr::null() {
             unsafe {self.set_active_container(&*new_active_container).unwrap(); }
         }
@@ -367,7 +369,7 @@ impl Tree {
     /// A new container is automatically added to the workspace, to ensure
     /// consistency with the tree. This container has no children, and should
     /// not be moved.
-    fn init_workspace<'a>(name: String, output: &'a mut Node) -> Option<&'a Node> {
+    fn init_workspace(name: String, output: &mut Node) -> Option<&Node> {
         let size = output.get_val().get_geometry()
             .expect("Output did not have a geometry").size;
         let workspace = Container::new_workspace(name.to_string(),
@@ -382,7 +384,6 @@ impl Tree {
                 match workspace.new_child(Container::new_container(geometry)) {
                     Ok(container) => { return Some(container) },
                     Err(e) => error!("Could not add container to workspace: {:?}",e ),
-                    // New active container should be this container of the new workspace
                 };
             },
             Err(e) => error!("Could not add workspace: {:?}", e),

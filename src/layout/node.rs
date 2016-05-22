@@ -187,6 +187,7 @@ impl Node {
     }
 
     /// Removes a child from self
+    #[allow(dead_code)]
     pub fn remove_child(&mut self, other: &Node) -> Option<Node> {
         if let Some(index) = self.children.iter().position(|c| c == other) {
             let mut child = self.children.remove(index);
