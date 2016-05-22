@@ -14,7 +14,6 @@ pub type TreeResult = Result<MutexGuard<'static, Tree>, TreeErr>;
 
 const ERR_BAD_TREE: &'static str = "Layout tree was in an invalid configuration";
 
-// NOTE Make an actual image of this, embed in documentation
 /* An example Tree:
 
       Root
@@ -239,12 +238,7 @@ impl Tree {
 
     /// Returns the currently active container.
     ///
-    /// Note that this might be at certain times this might simply be
-    /// an Output or a Workspace to ensure other methods work.
-    ///
-    /// NOTE This should change because a nice invariant to have would
-    /// be that `get_active_container` only returns either a container
-    /// or a view, since those are the only nodes that can be "active".
+    /// If this returns a Node, the node contains either a View or a Container
     pub fn get_active_container(&self) -> Option<&Node> {
         if self.active_container.is_null() {
             None
@@ -349,7 +343,6 @@ impl Tree {
                 return;
             }
         }
-        // NOTE Should probably not be "1", should be the next unclaimed number
         if self.get_active_container().is_none() && new_active_container != ptr::null() {
             unsafe {self.set_active_container(&*new_active_container).unwrap(); }
         }
@@ -360,9 +353,6 @@ impl Tree {
     /// A new container is automatically added to the workspace, to ensure
     /// consistency with the tree. This container has no children, and should
     /// not be moved.
-    ///
-    /// NOTE Consider changing it to be a different type, something that will not and can
-    /// not be moved? Another container type to check against then?
     pub fn add_workspace(&mut self, name: String) -> Option<&Node> {
         if let Some(output) = self.get_active_output_mut() {
             return Tree::init_workspace(name, output)
@@ -423,12 +413,6 @@ impl Tree {
     }
 
     /// Remove the view container with the given view
-    ///
-    /// If this is the only view of that container, and that container
-    /// is not the only one in the workspace, then that container is also
-    /// removed.
-    ///
-    /// NOTE Implement \^\^\^
     pub fn remove_view(&mut self, wlc_view: WlcView) {
         let mut maybe_parent: *const Node = ptr::null();
         if let Some(view) = self.root.find_view_by_handle(&wlc_view) {
@@ -465,7 +449,6 @@ impl Tree {
     /// will simply relocate the node to be destroyed and set it to be the active
     /// container.
     fn update_removed_active_container(&mut self, mut parent: &Node) {
-        let mut active_container_set = false;
         while parent.get_container_type() != ContainerType::Workspace {
             if let Some(view) = parent.get_descendant_of_type(ContainerType::View) {
                 match view.get_val().get_handle().expect("View had no handle") {
@@ -474,22 +457,18 @@ impl Tree {
                 }
                 unsafe {self.set_active_container(&*(view as *const Node)).unwrap()};
                 trace!("Active container set to view {:?}", view);
-                active_container_set = true;
-                break;
+                return;
             }
-        let maybe_parent = parent.get_ancestor_of_type(ContainerType::Container);
-            if maybe_parent.is_none() {
-                parent = parent.get_ancestor_of_type(ContainerType::Workspace).unwrap();
-            } else {
-                parent = maybe_parent.unwrap();
-            }
+            parent = parent.get_ancestor_of_type(ContainerType::Container)
+                .unwrap_or_else(|| {
+                    parent.get_ancestor_of_type(ContainerType::Workspace)
+                        .expect("Container was not part of a workspace")
+                });
         }
-        // We didn't find another view, set to the default container
-        if !active_container_set && parent.get_container_type() == ContainerType::Workspace {
-            let container = &parent.get_children()[0];
-            trace!("Active container set to container {:?}", container);
-            unsafe { self.set_active_container(&*(container as *const Node)).unwrap() };
-        }
+        // parent is a workspace
+        let container = &parent.get_children()[0];
+        trace!("Active container set to container {:?}", container);
+        unsafe { self.set_active_container(&*(container as *const Node)).unwrap() };
     }
 }
 
