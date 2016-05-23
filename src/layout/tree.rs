@@ -201,7 +201,7 @@ impl Tree {
     ///
     /// This function will return an Err if the container is not either a
     /// View or a Container
-    pub fn set_active_container(&mut self, node: &Node) -> Result<(), ()> {
+    fn set_active_container(&mut self, node: &Node) -> Result<(), ()> {
         match node.get_val().get_type() {
             ContainerType::View | ContainerType::Container => {
                 self.active_container = node as *const Node;
@@ -228,7 +228,7 @@ impl Tree {
     }
 
     /// Returns the currently active container as mutable.
-    pub fn get_active_container_mut(&mut self) -> Option<&mut Node> {
+    fn get_active_container_mut(&mut self) -> Option<&mut Node> {
         if let Some(container) = self.get_active_container() {
             unsafe { Some(container.as_mut()) }
         } else {
@@ -252,7 +252,7 @@ impl Tree {
 
     /// Get the monitor (output) that the active container is located on
     /// as mutable
-    pub fn get_active_output_mut(&mut self) -> Option<&mut Node> {
+    fn get_active_output_mut(&mut self) -> Option<&mut Node> {
         if let Some(output) = self.get_active_output() {
             unsafe { Some(output.as_mut()) }
         } else {
@@ -274,7 +274,7 @@ impl Tree {
     }
 
     /// Get the workspace that the active container is located on mutably
-    pub fn get_active_workspace_mut(&mut self) -> Option<&mut Node> {
+    fn get_active_workspace_mut(&mut self) -> Option<&mut Node> {
         if let Some(workspace) = self.get_active_workspace() {
             unsafe { Some(workspace.as_mut())  }
         } else {
@@ -294,7 +294,7 @@ impl Tree {
     }
 
     /// Find the workspace node that has the given name as mut
-    pub fn get_workspace_by_name_mut(&mut self, name: &str) -> Option<&mut Node> {
+    fn get_workspace_by_name_mut(&mut self, name: &str) -> Option<&mut Node> {
         if let Some(workspace) = self.get_workspace_by_name(name) {
             unsafe { Some(workspace.as_mut()) }
         } else {
