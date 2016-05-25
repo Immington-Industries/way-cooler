@@ -170,35 +170,27 @@ impl Tree {
         }
         let new_active_container: *const Node;
         {
+            let view: WlcView;
             /* Get the new workspace, make it visible */
-            let new_current_workspace = self.get_workspace_by_name_mut(name)
-                .expect(ERR_BAD_TREE);
-            new_current_workspace.set_visibility(true);
-            /* Set the first view to be focused, so the screen refreshes itself */
-            if new_current_workspace.get_children()[0].get_children().len() > 0 {
-                trace!("Focusing view");
-                let view_container = &new_current_workspace.get_children_mut()[0]
-                    .get_children_mut()[0];
-                match view_container.get_val().get_handle().expect(ERR_BAD_TREE) {
-                    Handle::View(view) => view.focus(),
-                    _ => {panic!("Expected view, got Wlc Output")},
-                }
-                new_active_container = view_container as *const Node;
+            {
+                let new_current_workspace = self.get_workspace_by_name_mut(name)
+                    .expect(ERR_BAD_TREE);
+                new_current_workspace.set_visibility(true);
+                /* Set the first view to be focused, so the screen refreshes itself */
+                view = Node::focus_first_view(new_current_workspace);
             }
-            /* If there is no view in the new workspace, just set the focused container
-            to be the workspace's only container */
-            else {
-                let child_container = &new_current_workspace.get_children()[0];
-                new_active_container = child_container as *const Node;
-                WlcView::root().focus();
+            if view == WlcView::root() {
+                new_active_container = &self.get_workspace_by_name(name)
+                    .expect(ERR_BAD_TREE).get_children()[0];
+            } else {
+                new_active_container = self.root.find_view_by_handle(&view)
+                    .expect("Could not find view we just found");
             }
         }
         // Update the tree's pointer to the currently focused container
-        self.validate_tree();
         unsafe { self.set_active_container(&*new_active_container).unwrap(); }
         self.validate_tree();
     }
-
 
     /// Sets the currently active container.
     ///

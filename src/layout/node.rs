@@ -113,6 +113,7 @@ impl Node {
             } else {
                 return None
             }
+            return None
         }
     }
 
@@ -259,6 +260,23 @@ impl Node {
         } else {
             panic!("Tried to take as_mut of a node not in the tree")
         }
+    }
+
+    /// Focuses the first view found in the children of the given node.
+    /// If there are no nodes found, then the focus switches to "no focus"
+    ///
+    /// The view that was used to focus will be returned. If the view is WlcView::Root(),
+    /// then no view was focused
+    pub fn focus_first_view(node: &Node) -> WlcView {
+        let root = WlcView::root();
+        let view = node.get_descendant_of_type(ContainerType::View).map_or(root, |node| {
+            match node.get_val().get_handle().expect("View did not have a WlcView") {
+                Handle::View(view) => view,
+                _ => panic!("View had a WlcOutput instead of a WlcView"),
+            }
+        });
+        view.focus();
+        view
     }
 }
 
