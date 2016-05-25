@@ -161,7 +161,7 @@ impl Tree {
             warn!("Could not find old workspace, could not set invisible");
             return;
         }
-        // If the workspace we are switching to doesn't exist, addi t
+        // If the workspace we are switching to doesn't exist, add it
         if let Some(_) = self.get_workspace_by_name(name) {
             trace!("Found workspace {}", name);
         } else {
@@ -194,6 +194,7 @@ impl Tree {
             }
         }
         // Update the tree's pointer to the currently focused container
+        self.validate_tree();
         unsafe { self.set_active_container(&*new_active_container).unwrap(); }
         self.validate_tree();
     }
@@ -464,9 +465,13 @@ impl Tree {
         // Ensure the each child node points to its parent
         fn validate_node_connections(parent: &Node) {
             for child in parent.get_children() {
-                trace!("Ensuring {:?} is a child of {:?}", child, parent);
-                assert_eq!(child.get_parent()
-                           .expect("Could not get parent of a node, tree invalid!"), parent);
+                let child_parent = child.get_parent()
+                                    .expect("Could not get parent of a node, tree invalid!");
+                if child_parent != parent {
+                    error!("Child {:#?} has parent {:#?}, expected {:#?}",
+                           child, child_parent, parent);
+                    panic!();
+                }
                 validate_node_connections(child);
             }
         }
@@ -478,27 +483,29 @@ impl Tree {
                 _ => panic!("Output container did not have an WlcOutput")
             };
             for view in view_list {
-                trace!("Checking if view {:?} is in output {:?}", view, output);
-                output.find_view_by_handle(&view)
-                    .expect("Could not find a view that wlc reports should be in the tree");
+                if output.find_view_by_handle(&view).is_none() {
+                    error!("View handle {:#?} could not be found on output {:#?}", view, output);
+                    panic!();
+                }
             }
         }
         // Ensure the active container is in the tree and is of the right type
         if let Some(active_container) = self.get_active_container() {
-            trace!("Active container is currently: {:?}", active_container);
             match active_container.get_val().get_type() {
                 ContainerType::View | ContainerType::Container => {},
                 _ => panic!("Active container was not a View or a Container")
             }
-            trace!("Seeing if active container is part of the tree..");
-            assert!(active_container.get_ancestor_of_type(ContainerType::Root).is_some());
+            if active_container.get_ancestor_of_type(ContainerType::Root).is_none() {
+                error!("Active container is currently: {:#?}", active_container);
+                error!("Active container is not part of tree");
+                panic!();
+            }
         }
         // Ensure that workspaces that exist at least have one child
         for output in self.root.get_children() {
             for workspace in output.get_children() {
-                trace!("Ensuring workspace {:?} is valid", workspace);
                 if workspace.get_children().len() == 0 {
-                    panic!("Found workspace that doesn't have at least one child");
+                    error!("Workspace {:#?} is invalid, expected at least one child, had none", workspace);
                 }
             }
         }

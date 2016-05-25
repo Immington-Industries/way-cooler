@@ -33,13 +33,12 @@ impl Node {
                                self.val, self.val.get_type()));
         }
         let self_mut = self as *mut Node;
-        self.children.push(Node {
+        let node = Node {
             parent: self_mut,
             val: val,
             children: Vec::new()
-        });
-        let last_ix = self.children.len() -1;
-        Ok(&mut self.children[last_ix])
+        };
+        self.add_child(node)
     }
 
     /// Adds an already existing Node to the tree
@@ -50,9 +49,24 @@ impl Node {
                                self.val, self.val.get_type()));
         }
         node.parent = self as *mut Node;
-        self.children.push(node);
+        if self.children.len() != 0 && self.children.len() == self.children.capacity() {
+            self.children.push(node);
+            // fix what the reallocation did
+            for workspace_child in self.get_children_mut() {
+                let new_container_parent = workspace_child as *mut Node;
+                for container_child in workspace_child.get_children_mut() {
+                    unsafe { container_child.set_parent(new_container_parent); }
+                }
+            }
+        } else {
+            self.children.push(node);
+        }
         let last_ix = self.children.len() - 1;
         Ok(&mut self.children[last_ix])
+    }
+
+    unsafe fn set_parent(&mut self, node: *mut Node) {
+        self.parent = node;
     }
 
     /// Whether this node has a (currently-reachable) parent
