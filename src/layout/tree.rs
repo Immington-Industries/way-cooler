@@ -144,6 +144,7 @@ impl Tree {
                 Container::Container { .. } => WlcView::root().focus(),
                 _ => panic!("Active Container was not a view or container")
             }
+        self.validate_tree();
     }
 
     /// Switch to the workspace with the give name
@@ -194,6 +195,7 @@ impl Tree {
         }
         // Update the tree's pointer to the currently focused container
         unsafe { self.set_active_container(&*new_active_container).unwrap(); }
+        self.validate_tree();
     }
 
 
@@ -205,13 +207,14 @@ impl Tree {
         match node.get_val().get_type() {
             ContainerType::View | ContainerType::Container => {
                 self.active_container = node as *const Node;
-                Ok(())
             },
             _ => {
                 error!("Tried to set {:?} as active container", node);
                 return Err(());
             }
         }
+        self.validate_tree();
+        Ok(())
     }
 
     /// Returns the currently active container.
@@ -270,6 +273,7 @@ impl Tree {
                 return Some(workspace)
             }
         }
+        self.validate_tree();
         return None
     }
 
@@ -326,6 +330,7 @@ impl Tree {
         if self.get_active_container().is_none() && new_active_container != ptr::null() {
             unsafe {self.set_active_container(&*new_active_container).unwrap(); }
         }
+        self.validate_tree();
     }
 
     /// Make a new workspace container with the given name on the current active output.
@@ -389,6 +394,7 @@ impl Tree {
         if ! maybe_new_view.is_null() {
             unsafe { self.set_active_container(&*maybe_new_view).unwrap(); }
         }
+        self.validate_tree();
     }
 
     /// Remove the view container with the given view
@@ -413,6 +419,7 @@ impl Tree {
         if ! maybe_parent.is_null() {
             unsafe { self.update_removed_active_container(&*maybe_parent); }
         }
+        self.validate_tree();
     }
 
     /// Updates the current active container to be the next container or view
@@ -448,6 +455,51 @@ impl Tree {
         let container = &parent.get_children()[0];
         trace!("Active container set to container {:?}", container);
         unsafe { self.set_active_container(&*(container as *const Node)).unwrap() };
+        self.validate_tree();
+    }
+
+    // Validates the invariants of the tree
+    fn validate_tree(&self) {
+        warn!("Validating the tree");
+        // Ensure the each child node points to its parent
+        fn validate_node_connections(parent: &Node) {
+            for child in parent.get_children() {
+                assert_eq!(child.get_parent().unwrap(), parent);
+                validate_node_connections(child);
+            }
+        }
+        validate_node_connections(&self.root);
+        // For each view, ensure that it's a node in the tree
+        for output in self.root.get_children() {
+            let view_list = match output.get_val().get_handle().expect("Output had no handle") {
+                Handle::Output(output) => output.get_views(),
+                _ => panic!("Output container did not have an WlcOutput")
+            };
+            for view in view_list {
+                trace!("Checking if view {:?} is in output {:?}", view, output);
+                output.find_view_by_handle(&view)
+                    .expect("Could not find a view that wlc reports should be in the tree");
+            }
+        }
+        // Ensure the active container is in the tree and is of the right type
+        if let Some(active_container) = self.get_active_container() {
+            trace!("Active container is currently: {:?}", active_container);
+            match active_container.get_val().get_type() {
+                ContainerType::View | ContainerType::Container => {},
+                _ => panic!("Active container was not a View or a Container")
+            }
+            trace!("Seeing if active container is part of the tree..");
+            assert!(active_container.get_ancestor_of_type(ContainerType::Root).is_some());
+        }
+        // Ensure that workspaces that exist at least have one child
+        for output in self.root.get_children() {
+            for workspace in output.get_children() {
+                trace!("Ensuring workspace {:?} is valid", workspace);
+                if workspace.get_children().len() == 0 {
+                    panic!("Found workspace that doesn't have at least one child");
+                }
+            }
+        }
     }
 }
 
