@@ -464,7 +464,9 @@ impl Tree {
         // Ensure the each child node points to its parent
         fn validate_node_connections(parent: &Node) {
             for child in parent.get_children() {
-                assert_eq!(child.get_parent().unwrap(), parent);
+                trace!("Ensuring {:?} is a child of {:?}", child, parent);
+                assert_eq!(child.get_parent()
+                           .expect("Could not get parent of a node, tree invalid!"), parent);
                 validate_node_connections(child);
             }
         }
