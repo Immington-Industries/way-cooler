@@ -176,14 +176,16 @@ impl Node {
     /// Remove a node from its parent.
     /// This method will mutate the parent if it exists.
     pub fn remove_from_parent(&mut self) -> Option<Node> {
-        let mut result: Option<Node> = None;
         if let Some(mut parent) = self.get_parent() {
             if let Some(index) = parent.children.iter().position(|c| c == self) {
-                result = Some(parent.children.remove(index));
+                // MOVES SELF OUT
+                // DO NOT USE SELF AFTER THIS, IS UNDEFINED BEHAVIOR
+                let mut node = parent.children.remove(index);
+                node.parent = ptr::null_mut();
+                return Some(node);
             }
         }
-        self.parent = ptr::null_mut();
-        result
+        return None;
     }
 
     /// Removes a child from self
