@@ -6,15 +6,15 @@ use std::ptr;
 
 use petgraph::graph::NodeIndex;
 
-use container::{Container, Handle, ContainerType};
+use layout::container::{Container, Handle, ContainerType};
 use rustwlc::{WlcView, WlcOutput, Geometry, Point};
 
-use graph_tree::Tree;
+use layout::graph_tree::Tree;
 
 /// Error for trying to lock the tree
-pub type TreeErr = TryLockError<MutexGuard<'static, Tree>>;
+pub type TreeErr = TryLockError<MutexGuard<'static, LayoutTree>>;
 /// Result for locking the tree
-pub type TreeResult = Result<MutexGuard<'static, Tree>, TreeErr>;
+pub type TreeResult = Result<MutexGuard<'static, LayoutTree>, TreeErr>;
 
 const ERR_BAD_TREE: &'static str = "Layout tree was in an invalid configuration";
 
@@ -190,7 +190,7 @@ impl Tree {
     /// not be moved.
     fn new_workspace_ix(&mut self, name: String) -> Option<NodeIndex> {
         if let Some(output_ix) = self.active_output_ix() {
-            return self.init_workspace(name, output)
+            return self.init_workspace(name, output_ix)
         } else {
             warn!("Could not get active output");
         }
@@ -251,7 +251,7 @@ impl Tree {
                     Handle::View(view) => view.focus(),
                     _ => panic!("View had an output handle")
                 }
-                trace!("Active container set to view at {}", view_ix)
+                trace!("Active container set to view at {}", view_ix);
                 self.active_container = Some(view_ix);
                 return;
             }
@@ -366,19 +366,21 @@ impl Tree {
         warn!("Validating the tree");
 
         // Recursive method to ensure child/parent nodes are connected
-        fn validate_node_connectons(&self, parent_ix: NodeIndex) {
+        fn validate_node_connectons(this: &Tree, parent_ix: NodeIndex) {
             for child_ix in self.tree.children_of(parent_ix) {
                 let child_parent = self.tree.parent_of(child_ix)
                     .expect("connections: Child did not point to parent!");
                 if child_parent != parent_ix {
                     error!("Child at {} has parent {}, expected {}",
                            child_ix, child_parent, parent_ix);
-                    trace!("The tree: {:#?}", self);
+                    trace!("The tree: {:#?}", this);
                     panic!()
                 }
-                validate_node_connections(self, child_ix);
+                validate_node_connections(this, child_ix);
             }
         }
+
+        validate_node_connectons(self, self.tree.root_ix());
 
         // For each view, ensure it's a node in the tree
         for output_ix in self.tree.chidren_of(self.tree.root_ix()) {

@@ -1,8 +1,10 @@
 //! A tree represented via a petgraph graph, used for way-cooler's
 //! layout.
 
+use std::iter::Iterator;
+
 use petgraph::EdgeDirection;
-use petgraph::graph::{Graph, EdgeDirection, Node, Neighbors, NodeIndex};
+use petgraph::graph::{Graph, Node, Neighbors, NodeIndex, EdgeIndex};
 
 use layout::{Container, ContainerType};
 
@@ -18,7 +20,7 @@ impl Tree {
     pub fn new() -> Tree {
         let mut graph = Graph::new();
         let root_ix = graph.add_node(Container::Root);
-        Tree { graph: graph, root: root_it }
+        Tree { graph: graph, root: root_ix }
     }
 
     /// Gets the index of the tree's root node
@@ -35,7 +37,7 @@ impl Tree {
             .expect("add_child: parent not found");
         if !parent.get_type().can_have_child(val.get_type()) {
             panic!("Attempted to give a {:?} a {:?} child!",
-                   parent.get_type(), child.get_type())
+                   parent.get_type(), val.get_type())
         }
         let child_ix = self.graph.add_node(val);
         let edge_ix = self.graph.update_edge(parent_ix, child_ix, ());
@@ -143,7 +145,7 @@ impl Tree {
     ///
     /// Will return an empty iterator if the node has no children or
     /// if the node does not exist.
-    pub fn children_of(&self, node_ix: NodeIndex) -> Iter<NodeIndex> {
+    pub fn children_of(&self, node_ix: NodeIndex) -> Iterator<Item=NodeIndex> {
         self.graph.neighbors_directed(node_ix, EdgeDirection::Outgoing)
     }
 
@@ -186,7 +188,7 @@ impl Tree {
     pub fn descendant_of_type(&self, node_ix: NodeIndex,
                            container_type: ContainerType) -> Option<NodeIndex> {
         // TODO if self == type?
-        for child in self.children_of(curr_ix) {
+        for child in self.children_of(node_ix) {
             if let Some(desc) = self.descendant_of_type(child, container_type) {
                     return Some(desc)
             }
@@ -226,20 +228,19 @@ impl Tree {
     }
 }
 
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 
-impl Index<Idx=NodeIndex> for Tree {
+impl Index<NodeIndex> for Tree {
     type Output = Container;
     #[inline]
-    fn index(&self, index: Idx) -> &Self::Output {
+    fn index(&self, index: NodeIndex) -> &Self::Output {
         self.get(index)
     }
 }
 
-impl IndexMut<Idx=NodeIndex> for Tree {
-    type Output = Container;
+impl IndexMut<NodeIndex> for Tree {
     #[inline]
-    fn index(&mut self, index: Idx) -> &mut Self::Output {
+    fn index_mut(&mut self, index: NodeIndex) -> &mut Self::Output {
         self.get_mut(index)
     }
 }
