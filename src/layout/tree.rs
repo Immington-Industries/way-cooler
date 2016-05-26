@@ -151,6 +151,37 @@ impl Tree {
         self.workspace_ix_by_name.map(|ix| self.tree[ix])
     }
 
+    /// Initializes a workspace and gets the index of the root container
+    fn init_workspace(&mut self, name: String, output_ix: NodeIndex)
+                      -> NodeIndex {
+        let size = self.tree[output_ix]
+            .expect("init_workspace: invalid output").get_geometry()
+            .expect("init_workspace: no geometry for output").size;
+        let worksp = Container::new_workspace(name.to_string(), size.clone());
+
+        let (_, worksp_ix) = self.tree.add_child(output_ix, worksp);
+        trace!("Added workspace {:?}", worksp);
+        let geometry = Geometry {
+            size: size, origin: Point { x: 0, y: 0 }
+        };
+        let (_, container_ix) = self.tree.add_child(worksp_ix,
+                                           Container::new_container(geometry));
+        container_ix
+    }
+
+    /// Make a new output container with the given WlcOutput.
+    ///
+    /// A new workspace is automatically added to the output, to ensure
+    /// consistency with the tree. By default, it sets this new workspace to
+    /// be workspace "1". This will later change to be the first available
+    /// workspace if using i3-style workspaces.
+    pub fn add_output(&mut self, output: WlcOutput) {
+        trace!("Adding new output with {:?}", output);
+        let (_, output_ix) = self.tree.add_child(self.tree.root_ix(),
+                                          Container::new_output(output));
+        self.active_container = self.init_workspace(output_ix, "1".to_string());
+        self.validate();
+    }
 
     /// Switch to the specified workspace
     pub fn switch_to_workspace(&mut self, name: &str) {
