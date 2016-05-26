@@ -6,9 +6,6 @@ use petgraph::graph::{Graph, EdgeDirection, Node, Neighbors, NodeIndex};
 
 use layout::{Container, ContainerType};
 
-/// Node used in the layout tree
-pub type Node = Node<Container>;
-
 /// Layout tree implemented with petgraph.
 #[derive(Debug)]
 pub struct Tree {
@@ -200,5 +197,23 @@ impl Tree {
         for child in self.children_of(node_ix) {
             self.get_mut(child).set_visibility(visible);
         }
+    }
+}
+
+use std::ops::Index;
+
+impl Index<Idx=NodeIndex> for Tree {
+    type Output = Container;
+    #[inline]
+    fn index(&self, index: Idx) -> &Self::Output {
+        self.get(index)
+    }
+}
+
+impl IndexMut<Idx=NodeIndex> for Tree {
+    type Output = Container;
+    #[inline]
+    fn index(&mut self, index: Idx) -> &mut Self::Output {
+        self.get_mut(index)
     }
 }
