@@ -84,6 +84,27 @@ impl Tree {
         }
     }
 
+    /// Removes a node at the given index. This may invalidate other node
+    /// indices.
+    ///
+    /// From `petgraph`:
+    /// Remove a from the graph if it exists, and return its weight.
+    ///
+    /// If it doesn't exist in the graph, return None.
+    ///
+    /// Apart from a, this invalidates the last node index in the graph
+    /// (that node will adopt the removed node index).
+    /// Edge indices are invalidated as they would be following the removal
+    /// of each edge with an endpoint in a.
+    ///
+    /// Computes in O(e') time, where e' is the number of affected edges,
+    /// including n calls to .remove_edge() where n is the number of edges
+    /// with an endpoint in a, and including the edges with an endpoint in
+    /// the displaced node.
+    pub fn remove(&mut self, node_ix: NodeIndex) -> Option<Container> {
+        self.graph.remove_node(node_ix)
+    }
+
     /// Moves a node between two indices
     pub fn move_node(&mut self, node_ix: NodeIndex, new_parent: NodeIndex) {
         self.detach(node_ix);
