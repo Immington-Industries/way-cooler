@@ -131,6 +131,67 @@ impl Tree {
         self.get_active_of(ContainerType::Workspace)
     }
 
+    /// Gets the index of the workspace of this name
+    ///
+    /// TODO will search all outputs, probably should be more directed
+    fn workspace_ix_by_name(&self, name: &str) -> Option<NodeIndex> {
+        for output in self.tree.children_of(self.tree.root_ix()) {
+            for workspace in self.tree.children_of(output) {
+                if self.tree[workspace].get_name()
+                    .expect("workspace_by_name: bad tree structure") == name {
+                    return Some(workspace)
+                }
+            }
+        }
+        return None
+    }
+
+    /// Gets a workspace by name
+    pub fn get_workspace_by_name(&self, name: &str) -> Option<&Container> {
+        self.workspace_ix_by_name.map(|ix| self.tree[ix])
+    }
+
+
+    /// Switch to the specified workspace
+    pub fn switch_to_workspace(&mut self, name: &str) {
+        if self.active_container.is_none() {
+            warn!("No active container, cannot switch");
+            return;
+        }
+        // Set old workspace to be invisible
+        if let Some(old_worksp_ix) = self.active_ix_of(ContainerType::Workspace) {
+            trace!("Switching to workspace {}", name);
+            //self.tree.set_family_visible(old_worksp_ix, false);
+            self.tree.get_mut(old_worksp_ix).expect("Asserted unwrap")
+                .set_visibility(false);
+        } else {
+            warn!("Could not find old workspace, could not set invisible");
+            return;
+        }
+        // If the workspace doesn't exist add it
+        if let Some(_) = self.workspace_ix_by_name(name) {
+            trace!("Found workspace {}", name);
+        } else {
+            trace!("Adding workspace {}", name);
+            self.add_workspace(name.to_string());
+        }
+        // Update new workspace visibility
+        let workspace_ix = self.workspace_ix_by_name(name)
+            .expect("switch_to_workspace: unable to create workspace?");
+        self.tree.get_mut(workspace_ix).expect("Asserted unwrap")
+            .set_visibility(true);
+        // Get the first view to be focused, so the screen updates
+        let view = self.tree.first_view_to_focus(workspace_ix);
+        if view.is_root() {
+            self.active_container = self.tree.children_of(
+                self.workspace_ix_by_name(name).expect("Just made workspace"))
+                .first();
+        } else {
+            self.active_container = Some(self.find_view_ix_by_handle(&view)
+                .expect("Could not find view we just found"));
+        }
+        self.validate();
+    }
 
     /// Moves the current active container to a new workspace
     pub fn send_active_to_workspace(&mut self, name: &str) {
