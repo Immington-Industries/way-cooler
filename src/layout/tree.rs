@@ -5,9 +5,10 @@ use std::sync::{Mutex, MutexGuard, TryLockError};
 use std::ptr;
 
 use super::container::{Container, Handle, ContainerType};
-use super::node::{Node};
 use super::super::rustwlc::{WlcView, WlcOutput, Geometry, Point};
 
+use petgraph::graph::{DefIndex, Graph, Node, NodeIndex, Neighbors};
+use petgraph::EdgeDirection;
 
 pub type TreeErr = TryLockError<MutexGuard<'static, Tree>>;
 pub type TreeResult = Result<MutexGuard<'static, Tree>, TreeErr>;
@@ -64,18 +65,20 @@ const ERR_BAD_TREE: &'static str = "Layout tree was in an invalid configuration"
 ///       - A View cannot have any children
 #[derive(Debug)]
 pub struct Tree {
-    root: Node,
-    active_container: *const Node,
+    root: Graph<Container, ()>,
+    active_container: Option<NodeIndex<Container>>,
 }
 
 unsafe impl Send for Tree {}
 
 lazy_static! {
     static ref TREE: Mutex<Tree> = {
-        Mutex::new(Tree{
-            root: Node::new(Container::new_root()),
-            active_container: ptr::null(),
-        })
+        let tree = Tree {
+            root: Graph::new(),
+            active_container: None,
+        };
+        tree.root.add_node(Container::new_root());
+        Mutex::new(tree)
     };
 }
 
@@ -114,8 +117,8 @@ impl Tree {
             self.add_workspace(name.to_string());
         }
         info!("Moving container {:?} to workspace {}", self.get_active_container(), name);
-        let moved_container: Node;
-        let parent: *const Node;
+        let moved_container: Node<Container>;
+        let parent: *const Node<Container>;
         // Move the container out (and set it to be invisible),
         // get the moved_container to be placed into new workspace
         // and parent so that we can get the new active container on this workspace
@@ -196,7 +199,7 @@ impl Tree {
     ///
     /// This function will return an Err if the container is not either a
     /// View or a Container
-    fn set_active_container(&mut self, node: &Node) -> Result<(), ()> {
+    fn set_active_container(&mut self, node: &Node<Container>) -> Result<(), ()> {
         match node.get_val().get_type() {
             ContainerType::View | ContainerType::Container => {
                 self.active_container = node as *const Node;
@@ -213,7 +216,7 @@ impl Tree {
     /// Returns the currently active container.
     ///
     /// If this returns a Node, the node contains either a View or a Container
-    pub fn get_active_container(&self) -> Option<&Node> {
+    pub fn get_active_container(&self) -> Option<&Node<Container>> {
         if self.active_container.is_null() {
             None
         } else {
@@ -224,7 +227,7 @@ impl Tree {
     }
 
     /// Returns the currently active container as mutable.
-    fn get_active_container_mut(&mut self) -> Option<&mut Node> {
+    fn get_active_container_mut(&mut self) -> Option<&mut Node<Container>> {
         if let Some(container) = self.get_active_container() {
             unsafe { Some(container.as_mut()) }
         } else {
@@ -234,7 +237,7 @@ impl Tree {
 
 
     /// Get the monitor (output) that the active container is located on
-    pub fn get_active_output(&self) -> Option<&Node> {
+    pub fn get_active_output(&self) -> Option<&Node<Container>> {
         if let Some(node) = self.get_active_container() {
             if node.get_val().get_type() == ContainerType::Output {
                 Some(node)
@@ -248,7 +251,7 @@ impl Tree {
 
     /// Get the monitor (output) that the active container is located on
     /// as mutable
-    fn get_active_output_mut(&mut self) -> Option<&mut Node> {
+    fn get_active_output_mut(&mut self) -> Option<&mut Node<Container>> {
         if let Some(output) = self.get_active_output() {
             unsafe { Some(output.as_mut()) }
         } else {
@@ -257,7 +260,7 @@ impl Tree {
     }
 
     /// Get the workspace that the active container is located on
-    pub fn get_active_workspace(&self) -> Option<&Node> {
+    pub fn get_active_workspace(&self) -> Option<&Node<Container>> {
         if let Some(node) = self.get_active_container() {
             if node.get_val().get_type() == ContainerType::Workspace {
                 return Some(node)
@@ -271,7 +274,7 @@ impl Tree {
     }
 
     /// Get the workspace that the active container is located on mutably
-    fn get_active_workspace_mut(&mut self) -> Option<&mut Node> {
+    fn get_active_workspace_mut(&mut self) -> Option<&mut Node<Container>> {
         if let Some(workspace) = self.get_active_workspace() {
             unsafe { Some(workspace.as_mut())  }
         } else {
@@ -280,7 +283,7 @@ impl Tree {
     }
 
     /// Find the workspace node that has the given name
-    pub fn get_workspace_by_name(&self, name: &str) -> Option<&Node> {
+    pub fn get_workspace_by_name(&self, name: &str) -> Option<&Node<Container>> {
         for child in self.root.get_children()[0].get_children() {
             if child.get_val().get_name().expect(ERR_BAD_TREE) != name {
                 continue
@@ -291,7 +294,7 @@ impl Tree {
     }
 
     /// Find the workspace node that has the given name as mut
-    fn get_workspace_by_name_mut(&mut self, name: &str) -> Option<&mut Node> {
+    fn get_workspace_by_name_mut(&mut self, name: &str) -> Option<&mut Node<Container>> {
         if let Some(workspace) = self.get_workspace_by_name(name) {
             unsafe { Some(workspace.as_mut()) }
         } else {
@@ -331,7 +334,7 @@ impl Tree {
     /// A new container is automatically added to the workspace, to ensure
     /// consistency with the tree. This container has no children, and should
     /// not be moved.
-    pub fn add_workspace(&mut self, name: String) -> Option<&Node> {
+    pub fn add_workspace(&mut self, name: String) -> Option<&Node<Container>> {
         if let Some(output) = self.get_active_output_mut() {
             return Tree::init_workspace(name, output)
         } else {
@@ -345,7 +348,7 @@ impl Tree {
     /// A new container is automatically added to the workspace, to ensure
     /// consistency with the tree. This container has no children, and should
     /// not be moved.
-    fn init_workspace(name: String, output: &mut Node) -> Option<&Node> {
+    fn init_workspace(name: String, output: &mut Node<Container>) -> Option<&Node<Container>> {
         let size = output.get_val().get_geometry()
             .expect("Output did not have a geometry").size;
         let workspace = Container::new_workspace(name.to_string(),
@@ -427,7 +430,7 @@ impl Tree {
     /// Note that the node should be destroyed already, otherwise this algorithm
     /// will simply relocate the node to be destroyed and set it to be the active
     /// container.
-    fn update_removed_active_container(&mut self, mut parent: &Node) {
+    fn update_removed_active_container(&mut self, mut parent: &Node<Container>) {
         while parent.get_container_type() != ContainerType::Workspace {
             if let Some(view) = parent.get_descendant_of_type(ContainerType::View) {
                 match view.get_val().get_handle().expect("View had no handle") {
@@ -455,19 +458,18 @@ impl Tree {
     fn validate_tree(&self) {
         warn!("Validating the tree");
         // Ensure the each child node points to its parent
-        fn validate_node_connections(parent: &Node) {
-            for child in parent.get_children() {
-                let child_parent = child.get_parent()
-                                    .expect("Could not get parent of a node, tree invalid!");
-                if child_parent != parent {
+        fn validate_node_connections(this: &Tree, parent: &NodeIndex) {
+            for child in this.get_children(parent) {
+                let child_parent = this.get_parent(child);
+                if child_parent != *parent {
                     error!("Child {:#?} has parent {:#?}, expected {:#?}",
                            child, child_parent, parent);
                     panic!();
                 }
-                validate_node_connections(child);
+                validate_node_connections(this, &child);
             }
         }
-        validate_node_connections(&self.root);
+        validate_node_connections(self, &self.root);
         // For each view, ensure that it's a node in the tree
         for output in self.root.get_children() {
             let view_list = match output.get_val().get_handle().expect("Output had no handle") {
@@ -494,13 +496,27 @@ impl Tree {
             }
         }
         // Ensure that workspaces that exist at least have one child
-        for output in self.root.get_children() {
-            for workspace in output.get_children() {
-                if workspace.get_children().len() == 0 {
+        for output in self.get_children(NodeIndex::new(0)) {
+            for workspace in self.get_children(output) {
+                if self.get_children(workspace).collect().len() == 0 {
                     error!("Workspace {:#?} is invalid, expected at least one child, had none", workspace);
                 }
             }
         }
+    }
+
+    /* NOTE: Put these functions in the wrapper */
+
+    /// Gets the children of the Tree Node
+    fn get_children(&self, node_index: NodeIndex) -> Vec<NodeIndex> {
+        self.root.neighbors_directed(node_index, EdgeDirection::Outgoing).collect()
+    }
+
+    /// Gets the parent (only directed graph into) for this node
+    fn get_parent(&self, node_index: NodeIndex) -> NodeIndex {
+        let parent_edge = self.root.first_edge(node_index, EdgeDirection::Incoming)
+                           .expect("Did not have a parent");
+        self.root.edge_endpoints(parent_edge).unwrap().1
     }
 }
 
@@ -510,3 +526,4 @@ pub fn try_lock_tree() -> TreeResult {
     trace!("Locking the tree!");
     TREE.try_lock()
 }
+

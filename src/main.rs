@@ -14,6 +14,8 @@ extern crate env_logger;
 #[macro_use]
 extern crate hlua;
 
+extern crate petgraph;
+
 use std::env;
 
 use log::LogLevel;
