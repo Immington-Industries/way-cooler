@@ -86,18 +86,59 @@ impl Tree {
         self.active_container.and_then(|ix| self.tree[ix])
     }
 
-    pub fn get_active_output(&self) -> Option<&Container> {
-        self.get_active_container()
-            .and_then(|cont|  )
+    /// Gets the currently active container.
+    pub fn get_active_container_mut(&mut self) -> Option<&mut Container> {
+        self.active_container.and_then(|ix| self.tree.get_mut(ix))
     }
+
+    /// Gets the index of the currently active output
+    fn active_ix_of(&self, ctype: ContainerType) -> Option<NodeIndex> {
+        if let Some(ix) = self.active_container {
+            if self[ix].get_type() == ctype {
+                return Some(ix)
+            }
+            return self.get_ancestor_of_type(
+                self.active_container, ctype)
+        }
+        return None
+    }
+
+    fn get_active_of(&self, ctype: ContainerType) -> Option<&Container> {
+        self.active_ix_of(ctype).and_then(|ix| self.tree[ix])
+    }
+
+    fn get_active_of_mut(&self, ctype: ContainerType) -> Option<&Container> {
+        self.active_ix_of(ctype).and_then(|ix| self.tree.get_mut(ix))
+    }
+
+    /// Gets the WlcOutput the active container is located on
+    pub fn get_active_output(&self) -> Option<&Container> {
+        self.get_active_of(ContainerType::Output)
+    }
+
+    /// Gets the WlcOutput the active container is located on
+    pub fn get_active_output_mut(&mut self) -> Option<&mut Container> {
+        self.get_active_of_mut(ContainerType::Output)
+    }
+
+    /// Gets the workspace the active container is located on
+    pub fn get_active_workspace(&self) -> Option<&Container> {
+        self.get_active_of(ContainerType::Workspace)
+    }
+
+    /// Gets the workspace the active container is located on
+    pub fn get_active_workspace_mut(&mut self) -> Option<&mut Container> {
+        self.get_active_of(ContainerType::Workspace)
+    }
+
 
     /// Moves the current active container to a new workspace
     pub fn send_active_to_workspace(&mut self, name: &str) {
         // Ensure focus
-        if self.get_active_container().is_none() {
+        if self.active_container.is_none() {
             return;
         }
-        let active = self.get_active_container().expect("Asserted unwrap");
+        let active_ix = self.get_active_container.expect("Asserted unwrap");
         // Get active
         if let Some(worksp_ix) = self.get_active_workspace() {
             if cfg!(debug_asserts) {
