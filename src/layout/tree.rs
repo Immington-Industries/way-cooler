@@ -4,13 +4,16 @@
 use std::sync::{Mutex, MutexGuard, TryLockError};
 use std::ptr;
 
-use super::container::{Container, Handle, ContainerType};
-use super::super::rustwlc::{WlcView, WlcOutput, Geometry, Point};
+use petgraph::graph::NodeIndex;
 
-use petgraph::graph::{DefIndex, Graph, Node, NodeIndex, Neighbors};
-use petgraph::EdgeDirection;
+use container::{Container, Handle, ContainerType};
+use rustwlc::{WlcView, WlcOutput, Geometry, Point};
 
+use graph_tree::Tree;
+
+/// Error for trying to lock the tree
 pub type TreeErr = TryLockError<MutexGuard<'static, Tree>>;
+/// Result for locking the tree
 pub type TreeResult = Result<MutexGuard<'static, Tree>, TreeErr>;
 
 const ERR_BAD_TREE: &'static str = "Layout tree was in an invalid configuration";
@@ -43,7 +46,7 @@ const ERR_BAD_TREE: &'static str = "Layout tree was in an invalid configuration"
    View    View
  */
 
-/// A Tree of Nodes.
+/// The layout tree builds on top of the graph_tree.
 ///
 /// There are various invariants that the tree upholds:
 ///
@@ -63,91 +66,77 @@ const ERR_BAD_TREE: &'static str = "Layout tree was in an invalid configuration"
 ///   + View
 ///       - A View must be associated with a WlcView
 ///       - A View cannot have any children
-#[derive(Debug)]
-pub struct Tree {
-    root: Graph<Container, ()>,
-    active_container: Option<NodeIndex<Container>>,
+pub struct LayoutTree {
+    tree: Tree,
+    active_container: Option<NodeIndex>
 }
 
-unsafe impl Send for Tree {}
-
 lazy_static! {
-    static ref TREE: Mutex<Tree> = {
-        let tree = Tree {
-            root: Graph::new(),
-            active_container: None,
-        };
-        tree.root.add_node(Container::new_root());
-        Mutex::new(tree)
+    static ref TREE: Mutex<LayoutTree> = {
+        Mutex::new(LayoutTree {
+            tree: Tree::new(),
+            active_container: None
+        })
     };
 }
 
 impl Tree {
+    /// Gets the currently active container.
+    pub fn get_active_container(&self) -> Option<&Container> {
+        self.active_container.and_then(|ix| self.tree[ix])
+    }
+
+    pub fn get_active_output(&self) -> Option<&Container> {
+        self.get_active_container()
+            .and_then(|cont|  )
+    }
 
     /// Moves the current active container to a new workspace
-    pub fn move_container_to_workspace(&mut self, name: &str) {
-        // Ensure we are focused on something
+    pub fn send_active_to_workspace(&mut self, name: &str) {
+        // Ensure focus
         if self.get_active_container().is_none() {
             return;
         }
-        if let Some(workspace) = self.get_active_workspace() {
-            // Ensure we aren't trying to move nothing
-            if workspace.get_children().len() == 1 {
-                if workspace.get_children()[0].get_children().len() == 0 {
-                    warn!("Tried to move a container not made by the user");
-                    return;
-                }
+        let active = self.get_active_container().expect("Asserted unwrap");
+        // Get active
+        if let Some(worksp_ix) = self.get_active_workspace() {
+            if cfg!(debug_asserts) {
+                let workspace = self.tree.get(worksp_ix);
+                assert!(self.tree.children_of(worksp_ix).count() > 0,
+                        "Workspace child has no output");
+                assert!(self.tree.children_of(worksp_ix).first()
+                        .expect("send_active_to_workspace: debug asserts")
+                        .children().count() > 0,
+                        "Move container not made by user");
+                assert!(match self.tree[active].get_type() {
+                    ContainerType::Container|ContainerType::View => true,
+                    _ => false
+                }, "Invalid workspace switch type!");
             }
-            // Ensure we are moving to a new workspace
-            if workspace.get_val().get_name().unwrap() == name {
-                warn!("Tried to switch to already current workspace");
-                return;
+
+            // If workspace doesn't exist, add it
+            if self.get_workspace_by_name(name).is_none() {
+                self.add_workspace(name.to_string());
             }
-        }
-        // Ensure get_active_container is giving us a view or a container
-        match self.get_active_container().unwrap().get_val().get_type() {
-            ContainerType::Container | ContainerType::View => {},
-            _ => {
-                warn!("Tried to switch workspace on a non-view/container");
-                return
+            let maybe_active_parent = self.tree.parent_of(active);
+            // Move the container
+            info!("Moving container {} to workspace {}", active, name);
+            self.tree.move_node(active, worksp_ix); // This existed before petgraph
+
+            // Update the active container
+            if let Some(parent) = maybe_active_parent {
+                self.focus_on_next_container(parent);
             }
-        }
-        // If workspace doesn't exist, add it
-        if self.get_workspace_by_name(name).is_none() {
-            self.add_workspace(name.to_string());
-        }
-        info!("Moving container {:?} to workspace {}", self.get_active_container(), name);
-        let moved_container: Node<Container>;
-        let parent: *const Node<Container>;
-        // Move the container out (and set it to be invisible),
-        // get the moved_container to be placed into new workspace
-        // and parent so that we can get the new active container on this workspace
-        {
-            let mut_container = self.get_active_container_mut().unwrap();
-            parent = mut_container.get_parent().unwrap() as *const Node;
-            moved_container = mut_container.remove_from_parent()
-                .expect("Could not remove container, was not part of tree");
-            mut_container.set_visibility(false);
-            trace!("Removed container {:?}", moved_container);
-        }
-        // Put container into the new workspace
-        if let Some(workspace) = self.get_workspace_by_name_mut(name) {
-            let new_parent_container = &mut workspace.get_children_mut()[0];
-            new_parent_container.add_child(moved_container)
-                .expect("Could not moved container to other a workspace");
-            trace!("Added previously removed container to {:?} in workspace {}",
-                   new_parent_container,
-                   name);
-        }
-        unsafe { self.update_removed_active_container(&*parent); }
-        // Update the focus to the new active container
-        match *self.get_active_container()
-            .and_then(|container| Some(container.get_val())).unwrap() {
-                Container::View { ref handle, ..} => handle.focus(),
+
+            // Update focus to new container
+            // TODO make this its own method
+            match *self.get_active_container().map(Container::get_val) {
+                Container::View { ref handle, .. } => handle.focus(),
                 Container::Container { .. } => WlcView::root().focus(),
-                _ => panic!("Active Container was not a view or container")
+                _ => panic!("Active container not view or container!")
             }
-        self.validate_tree();
+        }
+        self.validate();
     }
 
     /// Switch to the workspace with the give name
