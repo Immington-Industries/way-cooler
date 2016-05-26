@@ -80,7 +80,7 @@ lazy_static! {
     };
 }
 
-impl Tree {
+impl LayoutTree {
     /// Gets the currently active container.
     pub fn get_active_container(&self) -> Option<&Container> {
         self.active_container.and_then(|ix| self.tree[ix])
@@ -179,7 +179,7 @@ impl Tree {
         trace!("Adding new output with {:?}", output);
         let (_, output_ix) = self.tree.add_child(self.tree.root_ix(),
                                           Container::new_output(output));
-        self.active_container = self.init_workspace(output_ix, "1".to_string());
+        self.active_container = self.init_workspace("1".to_string(), output_ix);
         self.validate();
     }
 

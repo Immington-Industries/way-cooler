@@ -6,6 +6,8 @@ use std::iter::Iterator;
 use petgraph::EdgeDirection;
 use petgraph::graph::{Graph, Node, Neighbors, NodeIndex, EdgeIndex};
 
+use rustwlc::WlcView;
+
 use layout::{Container, ContainerType};
 
 /// Layout tree implemented with petgraph.
