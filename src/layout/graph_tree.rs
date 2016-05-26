@@ -21,6 +21,11 @@ impl Tree {
         Tree { graph: graph, root: root_it }
     }
 
+    /// Gets the index of the tree's root node
+    pub fn root_ix(&self) -> NodeIndex {
+        self.root
+    }
+
     /// Adds a new child to a node at the index, returning the edge index
     /// of their connection and the index of the new node.
     // TODO should this return a result like the old API?
