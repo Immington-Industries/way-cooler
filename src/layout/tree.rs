@@ -66,6 +66,7 @@ const ERR_BAD_TREE: &'static str = "Layout tree was in an invalid configuration"
 ///   + View
 ///       - A View must be associated with a WlcView
 ///       - A View cannot have any children
+#[derive(Debug)]
 pub struct LayoutTree {
     tree: Tree,
     active_container: Option<NodeIndex>
@@ -103,11 +104,11 @@ impl LayoutTree {
         return None
     }
 
-    fn get_active_of(&self, ctype: ContainerType) -> Option<&Container> {
+    fn active_of(&self, ctype: ContainerType) -> Option<&Container> {
         self.active_ix_of(ctype).and_then(|ix| self.tree[ix])
     }
 
-    fn get_active_of_mut(&self, ctype: ContainerType) -> Option<&Container> {
+    fn active_of_mut(&self, ctype: ContainerType) -> Option<&Container> {
         self.active_ix_of(ctype).and_then(|ix| self.tree.get_mut(ix))
     }
 
@@ -146,6 +147,13 @@ impl LayoutTree {
         return None
     }
 
+    /// Gets a workspace by name or creates it
+    fn get_or_make_workspace(&mut self, name: &str) -> NodeIndex {
+        self.workspace_ix_by_name(name).or_else(||
+                    self.init_workspace(name.to_string(),
+                              self.active_ix_of(ContainerType::Output)))
+    }
+
     /// Gets a workspace by name
     pub fn get_workspace_by_name(&self, name: &str) -> Option<&Container> {
         self.workspace_ix_by_name.map(|ix| self.tree[ix])
@@ -154,7 +162,7 @@ impl LayoutTree {
     /// Initializes a workspace and gets the index of the root container
     fn init_workspace(&mut self, name: String, output_ix: NodeIndex)
                       -> NodeIndex {
-        let size = self.tree[output_ix]
+        let size = self.tree.get(output_ix)
             .expect("init_workspace: invalid output").get_geometry()
             .expect("init_workspace: no geometry for output").size;
         let worksp = Container::new_workspace(name.to_string(), size.clone());
@@ -168,6 +176,7 @@ impl LayoutTree {
                                            Container::new_container(geometry));
         container_ix
     }
+
 
     /// Make a new output container with the given WlcOutput.
     ///
@@ -183,25 +192,11 @@ impl LayoutTree {
         self.validate();
     }
 
-    /// Make a new workspace container with the given name on the current active output.
-    ///
-    /// A new container is automatically added to the workspace, to ensure
-    /// consistency with the tree. This container has no children, and should
-    /// not be moved.
-    fn new_workspace_ix(&mut self, name: String) -> Option<NodeIndex> {
-        if let Some(output_ix) = self.active_output_ix() {
-            return self.init_workspace(name, output_ix)
-        } else {
-            warn!("Could not get active output");
-        }
-        None
-    }
-
     /// Add a new view container with the given WlcView to the active container
     pub fn add_view(&mut self, view: WlcView) {
-        if let Some(worksp_ix) = self.active_workspace_ix() {
+        if let Some(worksp_ix) = self.active_ix_of(ContainerType::Workspace) {
             trace!("Adding {:?} to workspace {:?}", view, worksp_ix);
-            let container_ix = self.tree.children_of(worksp_ix).first()
+            let container_ix = self.tree.children_of(worksp_ix).next()
                 .expect("add_view: current workspace had no container");
             let (_, view_ix) = self.tree.add_child(container_ix,
                                                    Container::new_view(view));
@@ -215,7 +210,7 @@ impl LayoutTree {
         if let Some(view_ix) = self.tree.find_view_by_handle(self.tree.root_ix(), view) {
             let mut maybe_parent = None;
             // Check to not disrupt
-            if view_ix == self.active_container {
+            if self.active_container.map(|c| c == view_ix).unwrap_or(false) {
                 let parent = self.tree.ancestor_of_type(view_ix, ContainerType::Container)
                     .expect("remove_view: workspace had no other containers");
                 maybe_parent = Some(parent);
@@ -246,26 +241,26 @@ impl LayoutTree {
         while self.tree.node_type(parent_ix) != ContainerType::Workspace {
             if let Some(view_ix) = self.tree.descendant_of_type(parent,
                                                            ContainerType::View) {
-                match self.tree[view_ix].expect("already found ix")
+                match self.tree[view_ix]
                                     .get_handle().expect("view had no handle") {
                     Handle::View(view) => view.focus(),
                     _ => panic!("View had an output handle")
                 }
-                trace!("Active container set to view at {}", view_ix);
+                trace!("Active container set to view at {:?}", view_ix);
                 self.active_container = Some(view_ix);
                 return;
             }
             parent_ix = self.tree.ancestor_of_type(parent_ix,
                                                    ContainerType::Container)
                 .unwrap_or_else(|| {
-                    self.tree.ancestor_of_type(ContainerType::Workspace)
+                    self.tree.ancestor_of_type(parent_ix, ContainerType::Workspace)
                         .expect("Container was not part of a workspace")
                 });
         }
         // If this is reached, parent is workspace
-        let container_ix = self.tree.children_of(parent_ix).first()
+        let container_ix = self.tree.children_of(parent_ix).next()
             .expect("Workspace had no children");
-        trace!("Active container set to container {}", container_ix);
+        trace!("Active container set to container {:?}", container_ix);
         self.active_container = Some(container_ix);
         self.validate();
     }
@@ -286,27 +281,19 @@ impl LayoutTree {
             warn!("Could not find old workspace, could not set invisible");
             return;
         }
-        // If the workspace doesn't exist add it
-        if let Some(_) = self.workspace_ix_by_name(name) {
-            trace!("Found workspace {}", name);
-        } else {
-            trace!("Adding workspace {}", name);
-            self.new_workspace_ix(name.to_string())
-                .expect("unable to create workspace");
-        }
-        // Update new workspace visibility
-        let workspace_ix = self.workspace_ix_by_name(name)
-            .expect("switch_to_workspace: unable to create workspace?");
+        // Get the new workspace, or create one if it doesn't work
+        let workspace_ix = self.get_or_make_workspace(name);
+        // Set the new one to visible
         self.tree.get_mut(workspace_ix).expect("Asserted unwrap")
             .set_visibility(true);
         // Get the first view to be focused, so the screen updates
-        let view = self.tree.first_view_to_focus(workspace_ix);
+        let view: WlcView = self.tree.first_view_to_focus(workspace_ix);
         if view.is_root() {
             self.active_container = self.tree.children_of(
                 self.workspace_ix_by_name(name).expect("Just made workspace"))
-                .first();
+                .next();
         } else {
-            self.active_container = Some(self.find_view_ix_by_handle(&view)
+            self.active_container = Some(self.view_ix_by_handle(&view)
                 .expect("Could not find view we just found"));
         }
         self.validate();
@@ -318,60 +305,63 @@ impl LayoutTree {
         if self.active_container.is_none() {
             return;
         }
-        let active_ix = self.get_active_container.expect("Asserted unwrap");
-        // Get active
-        if let Some(worksp_ix) = self.get_active_workspace() {
-            if cfg!(debug_asserts) {
-                let workspace = self.tree.get(worksp_ix);
-                assert!(self.tree.children_of(worksp_ix).count() > 0,
-                        "Workspace child has no output");
-                assert!(self.tree.children_of(worksp_ix).first()
-                        .expect("send_active_to_workspace: debug asserts")
-                        .children().count() > 0,
-                        "Move container not made by user");
-                assert!(match self.tree[active].get_type() {
-                    ContainerType::Container|ContainerType::View => true,
-                    _ => false
-                }, "Invalid workspace switch type!");
-            }
 
-            // If workspace doesn't exist, add it
-            if self.get_workspace_by_name(name).is_none() {
-                self.add_workspace(name.to_string());
-            }
-            let maybe_active_parent = self.tree.parent_of(active);
-            // Move the container
-            info!("Moving container {} to workspace {}", active, name);
-            self.tree.move_node(active, worksp_ix); // This existed before petgraph
+        let active_ix = self.get_active_container().expect("Asserted unwrap");
+        let curr_work_ix = self.active_ix_of(ContainerType::Workspace)
+            .expect("send_active: Not currently in a workspace!");
+        let next_work_ix = self.get_or_make_workspace(name);
 
-            // Update the active container
-            if let Some(parent) = maybe_active_parent {
-                self.focus_on_next_container(parent);
-            }
-
-            // Update focus to new container
-            // TODO make this its own method
-            match *self.get_active_container().map(Container::get_val) {
-                Container::View { ref handle, .. } => handle.focus(),
-                Container::Container { .. } => WlcView::root().focus(),
-                _ => panic!("Active container not view or container!")
-            }
+        // Check if the workspaces are the same
+        if next_work_ix == curr_work_ix {
+            trace!("Attempted to move a view to the same workspace {}!", name);
+            return;
         }
+
+        // Get active
+        if cfg!(debug_asserts) {
+            let workspace = self.tree.get(worksp_ix);
+            let work_children = self.tree.children_of(worksp_ix).collect();
+            assert!(work_children.len() != 0, "Workspace has no children");
+            assert!(self.tree.children_of(work_children[0]).next().is_some(),
+                    "Move container not made by user");
+            assert!(match self.tree[active].get_type() {
+                ContainerType::Container|ContainerType::View => true,
+                _ => false
+            }, "Invalid workspace switch type!");
+        }
+
+        let maybe_active_parent = self.tree.parent_of(active);
+        // Move the container
+        info!("Moving container {:?} to workspace {}", active, name);
+        self.tree.move_node(active, worksp_ix);
+
+        // Update the active container
+        if let Some(parent) = maybe_active_parent {
+            self.focus_on_next_container(parent);
+        }
+
+        // Update focus to new container
+        // TODO make this its own method
+        self.get_active_container().map(|con| match *con {
+            Container::View { ref handle, .. } => handle.focus(),
+            Container::Container { .. } => WlcView::root().focus(),
+            _ => panic!("Active container not view or container!")
+        });
         self.validate();
     }
 
     /// Validates the tree
-    #[cfg(debug_debug_assertions)]
-    pub fn validate(&self) {
+    #[cfg(debug_assertions)]
+    fn validate(&self) {
         warn!("Validating the tree");
 
         // Recursive method to ensure child/parent nodes are connected
-        fn validate_node_connectons(this: &Tree, parent_ix: NodeIndex) {
+        fn validate_node_connectons(this: &LayoutTree, parent_ix: NodeIndex) {
             for child_ix in self.tree.children_of(parent_ix) {
                 let child_parent = self.tree.parent_of(child_ix)
                     .expect("connections: Child did not point to parent!");
                 if child_parent != parent_ix {
-                    error!("Child at {} has parent {}, expected {}",
+                    error!("Child at {:?} has parent {:?}, expected {:?}",
                            child_ix, child_parent, parent_ix);
                     trace!("The tree: {:#?}", this);
                     panic!()
@@ -383,9 +373,8 @@ impl LayoutTree {
         validate_node_connectons(self, self.tree.root_ix());
 
         // For each view, ensure it's a node in the tree
-        for output_ix in self.tree.chidren_of(self.tree.root_ix()) {
+        for output_ix in self.tree.children_of(self.tree.root_ix()) {
             let output = match self.tree[output_ix]
-                .expect("Couldn't find output listed from tree")
                 .get_handle().expect("Child of root had no output") {
                     Handle::Output(output) => output,
                     _ => panic!("Output container had no output")
@@ -394,7 +383,7 @@ impl LayoutTree {
                 if self.tree.find_view_by_handle(output_ix).is_none() {
                     error!("View handle {:?} could not be found for {:?}",
                            view, output);
-                    trace!("The tree: {#:?}", self);
+                    trace!("The tree: {:#?}", self);
                     panic!()
                 }
             }
@@ -402,7 +391,7 @@ impl LayoutTree {
 
         // Ensure active container is in tree and of right type
         if let Some(active_ix) = self.active_container {
-            let active = self.get_active_conttainer()
+            let active = self.get_active_container()
                 .expect("active_container points to invalid node");
             match active.get_type() {
                 ContainerType::View | ContainerType::Container => {},
@@ -410,9 +399,9 @@ impl LayoutTree {
             }
             // Check active container in tree
             if self.tree.ancestor_of_type(active_ix, ContainerType::Root).is_none() {
-                error!("Active container @ {} is not part of tree!", active_ix);
+                error!("Active container @ {:?} is not part of tree!", active_ix);
                 error!("Active container is {:?}", active);
-                trace!("The tree: {#:?}", self);
+                trace!("The tree: {:#?}", self);
                 panic!()
             }
         }
@@ -423,7 +412,7 @@ impl LayoutTree {
                 if self.tree.children_of(workspace_ix).next().is_none() {
                     error!("Workspace {:#?} has no children",
                            self.tree[workspace_ix]);
-                    trace!("The tree: {#:?}", self);
+                    trace!("The tree: {:#?}", self);
                     panic!()
                 }
             }
@@ -431,7 +420,6 @@ impl LayoutTree {
     }
 
     #[cfg(not(debug_assertions))]
-    #[inline]
     fn validate_tree() {}
 
 }
