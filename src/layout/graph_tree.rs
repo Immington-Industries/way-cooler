@@ -106,6 +106,7 @@ impl Tree {
     /// with an endpoint in a, and including the edges with an endpoint in
     /// the displaced node.
     pub fn remove(&mut self, node_ix: NodeIndex) -> Option<Container> {
+        unimplemented!();
         self.graph.remove_node(node_ix)
     }
 
@@ -147,20 +148,18 @@ impl Tree {
     ///
     /// Will return an empty iterator if the node has no children or
     /// if the node does not exist.
-    pub fn children_of(&self, node_ix: NodeIndex) -> Iterator<Item=NodeIndex> {
+    pub fn children_of(&self, node_ix: NodeIndex) -> Neighbors<NodeIndex> {
         self.graph.neighbors_directed(node_ix, EdgeDirection::Outgoing)
     }
 
     /// Gets the container of the given node.
-    pub fn get(&self, node_ix: NodeIndex) -> &Container {
+    pub fn get(&self, node_ix: NodeIndex) -> Option<&Container> {
         self.graph.node_weight(node_ix)
-            .expect("get: node not found")
     }
 
     /// Gets a mutable reference to a given node
-    pub fn get_mut(&mut self, node_ix: NodeIndex) -> &mut Container {
+    pub fn get_mut(&mut self, node_ix: NodeIndex) -> Option<&mut Container> {
         self.graph.node_weight_mut(node_ix)
-            .expect("get_mut: node not found")
     }
 
     /// Gets the ContainerType of the selected node
@@ -236,13 +235,13 @@ impl Index<NodeIndex> for Tree {
     type Output = Container;
     #[inline]
     fn index(&self, index: NodeIndex) -> &Self::Output {
-        self.get(index)
+        self.get(index).expect("graph_tree: node not found")
     }
 }
 
 impl IndexMut<NodeIndex> for Tree {
     #[inline]
     fn index_mut(&mut self, index: NodeIndex) -> &mut Self::Output {
-        self.get_mut(index)
+        self.get_mut(index).expect("graph_tree: node not found")
     }
 }
