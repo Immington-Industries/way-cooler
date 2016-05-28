@@ -84,7 +84,7 @@ lazy_static! {
 impl LayoutTree {
     /// Gets the currently active container.
     pub fn get_active_container(&self) -> Option<&Container> {
-        self.active_container.and_then(|ix| self.tree[ix])
+        self.active_container.and_then(|ix| self.tree.get(ix))
     }
 
     /// Gets the currently active container.
@@ -98,38 +98,38 @@ impl LayoutTree {
             if self[ix].get_type() == ctype {
                 return Some(ix)
             }
-            return self.get_ancestor_of_type(
-                self.active_container, ctype)
+            return self.active_container.and_then(|active|
+                            self.tree.ancestor_of_type(active, ctype))
         }
         return None
     }
 
     fn active_of(&self, ctype: ContainerType) -> Option<&Container> {
-        self.active_ix_of(ctype).and_then(|ix| self.tree[ix])
+        self.active_ix_of(ctype).and_then(|ix| self.tree.get(ix))
     }
 
-    fn active_of_mut(&self, ctype: ContainerType) -> Option<&Container> {
+    fn active_of_mut(&self, ctype: ContainerType) -> Option<&mut Container> {
         self.active_ix_of(ctype).and_then(|ix| self.tree.get_mut(ix))
     }
 
     /// Gets the WlcOutput the active container is located on
     pub fn get_active_output(&self) -> Option<&Container> {
-        self.get_active_of(ContainerType::Output)
+        self.active_of(ContainerType::Output)
     }
 
     /// Gets the WlcOutput the active container is located on
     pub fn get_active_output_mut(&mut self) -> Option<&mut Container> {
-        self.get_active_of_mut(ContainerType::Output)
+        self.active_of_mut(ContainerType::Output)
     }
 
     /// Gets the workspace the active container is located on
     pub fn get_active_workspace(&self) -> Option<&Container> {
-        self.get_active_of(ContainerType::Workspace)
+        self.active_of(ContainerType::Workspace)
     }
 
     /// Gets the workspace the active container is located on
     pub fn get_active_workspace_mut(&mut self) -> Option<&mut Container> {
-        self.get_active_of(ContainerType::Workspace)
+        self.active_of_mut(ContainerType::Workspace)
     }
 
     /// Gets the index of the workspace of this name
@@ -149,14 +149,15 @@ impl LayoutTree {
 
     /// Gets a workspace by name or creates it
     fn get_or_make_workspace(&mut self, name: &str) -> NodeIndex {
-        self.workspace_ix_by_name(name).or_else(||
+        self.workspace_ix_by_name(name).unwrap_or_else(||
                     self.init_workspace(name.to_string(),
-                              self.active_ix_of(ContainerType::Output)))
+                              self.active_ix_of(ContainerType::Output)
+                              .expect("get_or_make_wksp: Couldn't get output")))
     }
 
     /// Gets a workspace by name
     pub fn get_workspace_by_name(&self, name: &str) -> Option<&Container> {
-        self.workspace_ix_by_name.map(|ix| self.tree[ix])
+        self.workspace_ix_by_name(name).and_then(|ix| self.tree.get(ix))
     }
 
     /// Initializes a workspace and gets the index of the root container
@@ -188,7 +189,7 @@ impl LayoutTree {
         trace!("Adding new output with {:?}", output);
         let (_, output_ix) = self.tree.add_child(self.tree.root_ix(),
                                           Container::new_output(output));
-        self.active_container = self.init_workspace("1".to_string(), output_ix);
+        self.active_container = Some(self.init_workspace("1".to_string(), output_ix));
         self.validate();
     }
 
@@ -207,7 +208,7 @@ impl LayoutTree {
 
     //// Remove a view container from the tree
     pub fn remove_view(&mut self, view: &WlcView) {
-        if let Some(view_ix) = self.tree.find_view_by_handle(self.tree.root_ix(), view) {
+        if let Some(view_ix) = self.tree.descendant_with_handle(self.tree.root_ix(), view) {
             let mut maybe_parent = None;
             // Check to not disrupt
             if self.active_container.map(|c| c == view_ix).unwrap_or(false) {
