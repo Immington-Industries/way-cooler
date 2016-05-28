@@ -10,6 +10,7 @@ pub enum Handle {
     Output(WlcOutput)
 }
 
+/// Types of containers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContainerType {
     /// Root container, only one exists
@@ -245,7 +246,6 @@ impl Container {
     /// all others will return an Err with an appropriate error message.
     ///
     /// If setting a workspace, only the size of the geometry is set.
-    #[allow(dead_code)]
     pub fn set_geometry(&mut self, new_geometry: Geometry) -> Result<(), String> {
         match *self {
             Container::Workspace { ref mut size, .. } => *size = new_geometry.size,

@@ -23,7 +23,7 @@ pub extern fn output_created(output: WlcOutput) -> bool {
     {
         if let Ok(mut tree) = tree::try_lock_tree() {
             tree.add_output(output.clone());
-            tree.switch_workspace(&"1");
+            tree.switch_to_workspace(&"1");
             true
         } else {
             false
@@ -70,7 +70,7 @@ pub extern fn view_created(view: WlcView) -> bool {
 pub extern fn view_destroyed(view: WlcView) {
     trace!("view_destroyed: {:?}", view);
     if let Ok(mut tree) = tree::try_lock_tree() {
-        tree.remove_view(view);
+        tree.remove_view(&view);
     } else {
         warn!("Could not delete view {:?}", view);
     }

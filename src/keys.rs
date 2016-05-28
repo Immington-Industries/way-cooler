@@ -25,7 +25,7 @@ macro_rules! gen_switch_workspace {
         $(fn $b() {
             trace!("Switching to workspace {}", $n);
             if let Ok(mut tree)  = tree::try_lock_tree() {
-                tree.switch_workspace(&$n);
+                tree.switch_to_workspace(&$n);
             }
         }
           register_defaults!( $map; $b, keypress!("Alt", $n) );
@@ -39,7 +39,7 @@ macro_rules! gen_move_to_workspace {
         $(fn $b() {
             trace!("Moving active container to {}", $n);
             if let Ok(mut tree) = tree::try_lock_tree() {
-                tree.move_container_to_workspace(&$n);
+                tree.send_active_to_workspace(&$n);
             }
         }
           register_defaults!( $map; $b, KeyPress::from_key_names(vec!["Alt", "Shift"],

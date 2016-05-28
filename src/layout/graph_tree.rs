@@ -13,7 +13,7 @@ use layout::{Container, ContainerType};
 /// Layout tree implemented with petgraph.
 #[derive(Debug)]
 pub struct Tree {
-    graph: Graph<Container, ()>, // Directed graph
+    graph: Graph<Container, u32>, // Directed graph
     root: NodeIndex
 }
 
@@ -30,11 +30,24 @@ impl Tree {
         self.root
     }
 
+    /// Gets the edge value of the largest child of the node
+    fn largest_child(&self, node: NodeIndex) -> (NodeIndex, u32) {
+        use std::cmp::{self, Ord, Ordering};
+        self.graph.edges_directed(node, EdgeDirection::Outgoing)
+            .fold((node, 0), |(old_node, old_edge), (new_node, new_edge)|
+                  match <u32 as Ord>::cmp(&old_edge, new_edge) {
+                      Ordering::Less => (new_node, *new_edge),
+                      Ordering::Greater => (old_node, old_edge),
+                      Ordering::Equal =>
+                          panic!("largest_child: Node {:?} had two equal children {}",
+                          node, old_edge)
+                  })
+    }
+
     /// Adds a new child to a node at the index, returning the edge index
     /// of their connection and the index of the new node.
-    // TODO should this return a result like the old API?
     pub fn add_child(&mut self, parent_ix: NodeIndex, val: Container)
-                     -> (EdgeIndex, NodeIndex) {
+                     -> (u32, NodeIndex) {
         let parent = self.graph.node_weight(parent_ix)
             .expect("add_child: parent not found");
         if !parent.get_type().can_have_child(val.get_type()) {
@@ -42,8 +55,10 @@ impl Tree {
                    parent.get_type(), val.get_type())
         }
         let child_ix = self.graph.add_node(val);
-        let edge_ix = self.graph.update_edge(parent_ix, child_ix, ());
-        (edge_ix, child_ix)
+        let (_ix, biggest_child) = self.largest_child(parent_ix);
+        let edge_ix = self.graph.update_edge(parent_ix, child_ix,
+                                             biggest_child + 1);
+        (biggest_child + 1, child_ix)
     }
 
     /// Add an existing node (detached in the graph) to the tree.
@@ -64,27 +79,21 @@ impl Tree {
             panic!("Attempted to give a {:?} a {:?} child!",
                    parent_type, child_type);
         }
-
-        return self.graph.update_edge(parent_ix, child_ix, ())
+        let (_ix, biggest_child) = self.largest_child(parent_ix);
+        self.graph.update_edge(parent_ix, child_ix, biggest_child + 1)
     }
 
     /// Detaches a node from the tree (causing there to be two trees).
     /// This should only be done temporarily.
     pub fn detach(&mut self, node_ix: NodeIndex) {
-        let mut result: Option<NodeIndex> = None;
-        if let Some(edge) = if cfg!(debug_assertions) {
-            let edges = self.graph
-                .neighbors_directed(node_ix, EdgeDirection::Incoming);
-            let result = edges.next();
-            if edges.next().is_some() {
-                panic!("detach: node had more than one parent!")
-            }
+        if let Some(parent_ix) = self.parent_of(node_ix) {
+            let edge = self.graph.find_edge(parent_ix, node_ix)
+                .expect("detatch: Node has parent but edge cannot be found!");
+
+            self.graph.remove_edge(edge);
         }
         else {
-            self.graph.neighbors_directed(node_ix, EdgeDirection::Incoming)
-                .next()
-        } {
-            self.graph.remove_edge(edge);
+            trace!("detach: Detached a floating node");
         }
     }
 
@@ -106,7 +115,6 @@ impl Tree {
     /// with an endpoint in a, and including the edges with an endpoint in
     /// the displaced node.
     pub fn remove(&mut self, node_ix: NodeIndex) -> Option<Container> {
-        unimplemented!();
         self.graph.remove_node(node_ix)
     }
 
@@ -121,7 +129,7 @@ impl Tree {
     pub fn has_parent(&self, node_ix: NodeIndex) -> bool {
         let neighbors = self.graph
             .neighbors_directed(node_ix, EdgeDirection::Incoming);
-        match neighbors.iter().count() {
+        match neighbors.count() {
             0 => false,
             1 => true,
             _ => panic!("Node has more than one parent!")
@@ -148,8 +156,11 @@ impl Tree {
     ///
     /// Will return an empty iterator if the node has no children or
     /// if the node does not exist.
-    pub fn children_of(&self, node_ix: NodeIndex) -> Neighbors<NodeIndex> {
-        self.graph.neighbors_directed(node_ix, EdgeDirection::Outgoing)
+    pub fn children_of(&self, node_ix: NodeIndex) -> Vec<NodeIndex> {
+        let mut edges = self.graph.edges_directed(node_ix, EdgeDirection::Outgoing)
+            .collect::<Vec<(NodeIndex, &u32)>>();
+        edges.sort_by_key(|&(ref _ix, ref edge)| *edge);
+        edges.into_iter().map(|(ix, _edge)| ix).collect()
     }
 
     /// Gets the container of the given node.
@@ -163,10 +174,8 @@ impl Tree {
     }
 
     /// Gets the ContainerType of the selected node
-    pub fn node_type(&self, node_ix: NodeIndex) -> ContainerType {
-        let node = self.graph.node_weight(node_ix)
-            .expect("node_type: node not found");
-        node.get_type()
+    pub fn node_type(&self, node_ix: NodeIndex) -> Option<ContainerType> {
+        self.graph.node_weight(node_ix).map(Container::get_type)
     }
 
     /// Attempts to get an ancestor matching the matching type
@@ -177,7 +186,7 @@ impl Tree {
             curr_ix = parent_ix;
             let parent = self.graph.node_weight(parent_ix)
                 .expect("ancestor_of_type: parent_of invalid");
-            if parent.get_type() == container_type() {
+            if parent.get_type() == container_type {
                 return Some(parent_ix)
             }
             curr_ix = parent_ix;
@@ -188,7 +197,11 @@ impl Tree {
     /// Attempts to get a descendant of the matching type
     pub fn descendant_of_type(&self, node_ix: NodeIndex,
                            container_type: ContainerType) -> Option<NodeIndex> {
-        // TODO if self == type?
+        if let Some(container) = self.get(node_ix) {
+            if container.get_type() == container_type {
+                return Some(node_ix)
+            }
+        }
         for child in self.children_of(node_ix) {
             if let Some(desc) = self.descendant_of_type(child, container_type) {
                     return Some(desc)
@@ -198,33 +211,34 @@ impl Tree {
     }
 
     /// Finds a node by the view handle.
-    pub fn descendant_with_handle(&self, node: NodeIndex, handle: &WlcView)
+    pub fn descendant_with_handle(&self, node_ix: NodeIndex, search_handle: &WlcView)
                                -> Option<NodeIndex> {
-        match self.get(node) {
-            &Container::View { ref node_handle, .. } => {
-                if node_handle == handle {
-                    Some(node)
+        self.get(node_ix).and_then(|node| match node {
+            &Container::View { ref handle, .. } => {
+                if handle == search_handle {
+                    return Some(node_ix)
                 }
                 else {
-                    None
+                    return None
                 }
             },
             _ => {
-                for child in self.children_of(node) {
-                    if let Some(view) = self.descendant_with_handle(handle) {
-                        return Some(view)
+                for child in self.children_of(node_ix) {
+                    if let Some(found) = self.descendant_with_handle(child,
+                                                              search_handle) {
+                        return Some(found)
                     }
                 }
                 return None
             }
-        }
+        })
     }
 
     /// Sets the node and its children's visibility
     pub fn set_family_visible(&mut self, node_ix: NodeIndex, visible: bool) {
-        self.get_mut(node_ix).set_visibility(visible);
+        self.get_mut(node_ix).map(|c| c.set_visibility(visible));
         for child in self.children_of(node_ix) {
-            self.get_mut(child).set_visibility(visible);
+            self.get_mut(child).map(|c| c.set_visibility(visible));
         }
     }
 }
