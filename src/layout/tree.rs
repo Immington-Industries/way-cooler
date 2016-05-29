@@ -2,7 +2,6 @@
 //! This is where the i3-specific code is.
 
 use std::sync::{Mutex, MutexGuard, TryLockError};
-use std::ptr;
 
 use petgraph::graph::NodeIndex;
 
@@ -15,8 +14,6 @@ use layout::graph_tree::Tree;
 pub type TreeErr = TryLockError<MutexGuard<'static, LayoutTree>>;
 /// Result for locking the tree
 pub type TreeResult = Result<MutexGuard<'static, LayoutTree>, TreeErr>;
-
-const ERR_BAD_TREE: &'static str = "Layout tree was in an invalid configuration";
 
 /* An example Tree:
 
@@ -88,46 +85,54 @@ impl LayoutTree {
     }
 
     /// Gets the currently active container.
+    #[allow(dead_code)]
     pub fn get_active_container_mut(&mut self) -> Option<&mut Container> {
         self.active_container.and_then(move |ix| self.tree.get_mut(ix))
     }
 
-    /// Gets the index of the currently active output
+    /// Gets the index of the currently active container with the given type.
+    /// Starts at the active container, moves up until either a container with
+    /// that type is found or the root node is hit
     fn active_ix_of(&self, ctype: ContainerType) -> Option<NodeIndex> {
         if let Some(ix) = self.active_container {
             if self.tree[ix].get_type() == ctype {
                 return Some(ix)
             }
-            return self.active_container.and_then(|active|
-                            self.tree.ancestor_of_type(active, ctype))
+            return self.tree.ancestor_of_type(ix, ctype)
         }
         return None
     }
 
+    #[allow(dead_code)]
     fn active_of(&self, ctype: ContainerType) -> Option<&Container> {
         self.active_ix_of(ctype).and_then(|ix| self.tree.get(ix))
     }
 
+    #[allow(dead_code)]
     fn active_of_mut(&mut self, ctype: ContainerType) -> Option<&mut Container> {
         self.active_ix_of(ctype).and_then(move |ix| self.tree.get_mut(ix))
     }
 
     /// Gets the WlcOutput the active container is located on
+    #[allow(dead_code)]
     pub fn get_active_output(&self) -> Option<&Container> {
         self.active_of(ContainerType::Output)
     }
 
     /// Gets the WlcOutput the active container is located on
+    #[allow(dead_code)]
     pub fn get_active_output_mut(&mut self) -> Option<&mut Container> {
         self.active_of_mut(ContainerType::Output)
     }
 
     /// Gets the workspace the active container is located on
+    #[allow(dead_code)]
     pub fn get_active_workspace(&self) -> Option<&Container> {
         self.active_of(ContainerType::Workspace)
     }
 
     /// Gets the workspace the active container is located on
+    #[allow(dead_code)]
     pub fn get_active_workspace_mut(&mut self) -> Option<&mut Container> {
         self.active_of_mut(ContainerType::Workspace)
     }
@@ -155,11 +160,6 @@ impl LayoutTree {
             self.tree.parent_of(root_ix)
                 .expect("Workspace was not properly initialized with a root container")
         })
-    }
-
-    /// Gets a workspace by name
-    pub fn get_workspace_by_name(&self, name: &str) -> Option<&Container> {
-        self.workspace_ix_by_name(name).and_then(|ix| self.tree.get(ix))
     }
 
     /// Initializes a workspace and gets the index of the root container

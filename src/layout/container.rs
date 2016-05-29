@@ -107,11 +107,6 @@ pub enum Container {
 }
 
 impl Container {
-    /// Creates a new root container
-    pub fn new_root() -> Container {
-        Container::Root
-    }
-
     /// Creates a new output container with the given output
     pub fn new_output(handle: WlcOutput) -> Container {
         Container::Output {
@@ -314,7 +309,7 @@ mod tests {
             origin: Point { x: 1024, y: 2048},
             size: Size { w: 500, h: 700}
         };
-        let mut root = Container::new_root();
+        let mut root = Container::Root;
         assert!(root.get_geometry().is_none());
         assert!(root.set_geometry(test_geometry1.clone()).is_err());
 
