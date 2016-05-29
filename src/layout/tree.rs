@@ -308,6 +308,10 @@ impl LayoutTree {
         let active_ix = self.active_container.expect("Asserted unwrap");
         let curr_work_ix = self.active_ix_of(ContainerType::Workspace)
             .expect("send_active: Not currently in a workspace!");
+        if active_ix == self.tree.children_of(curr_work_ix)[0] {
+            warn!("Tried to move the root container of a workspace, aborting move");
+            return;
+        }
         let next_work_ix = self.get_or_make_workspace(name);
 
         // Check if the workspaces are the same
@@ -320,8 +324,6 @@ impl LayoutTree {
         if cfg!(debug_assertions) {
             let work_children = self.tree.children_of(curr_work_ix);
             assert!(work_children.len() != 0, "Workspace has no children");
-            assert!(self.tree.children_of(work_children[0]).iter().next().is_some(),
-                    "Move container not made by user");
             assert!(match self.tree[active_ix].get_type() {
                 ContainerType::Container|ContainerType::View => true,
                 _ => false
