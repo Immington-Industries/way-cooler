@@ -46,19 +46,10 @@ impl Tree {
 
     /// Adds a new child to a node at the index, returning the edge index
     /// of their connection and the index of the new node.
-    pub fn add_child(&mut self, parent_ix: NodeIndex, val: Container)
-                     -> (u32, NodeIndex) {
-        let parent = self.graph.node_weight(parent_ix)
-            .expect("add_child: parent not found");
-        if !parent.get_type().can_have_child(val.get_type()) {
-            panic!("Attempted to give a {:?} a {:?} child!",
-                   parent.get_type(), val.get_type())
-        }
+    pub fn add_child(&mut self, parent_ix: NodeIndex, val: Container) -> NodeIndex {
         let child_ix = self.graph.add_node(val);
-        let (_ix, biggest_child) = self.largest_child(parent_ix);
-        let edge_ix = self.graph.update_edge(parent_ix, child_ix,
-                                             biggest_child + 1);
-        (biggest_child + 1, child_ix)
+        self.attach_child(parent_ix, child_ix);
+        child_ix
     }
 
     /// Add an existing node (detached in the graph) to the tree.
@@ -138,7 +129,7 @@ impl Tree {
 
     /// Gets the parent of a node, if the node exists
     pub fn parent_of(&self, node_ix: NodeIndex) -> Option<NodeIndex> {
-        let neighbors = self.graph
+        let mut neighbors = self.graph
             .neighbors_directed(node_ix, EdgeDirection::Incoming);
         if cfg!(debug_assertions) {
             let result = neighbors.next();

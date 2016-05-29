@@ -89,7 +89,7 @@ impl LayoutTree {
 
     /// Gets the currently active container.
     pub fn get_active_container_mut(&mut self) -> Option<&mut Container> {
-        self.active_container.and_then(|ix| self.tree.get_mut(ix))
+        self.active_container.and_then(move |ix| self.tree.get_mut(ix))
     }
 
     /// Gets the index of the currently active output
@@ -108,8 +108,8 @@ impl LayoutTree {
         self.active_ix_of(ctype).and_then(|ix| self.tree.get(ix))
     }
 
-    fn active_of_mut(&self, ctype: ContainerType) -> Option<&mut Container> {
-        self.active_ix_of(ctype).and_then(|ix| self.tree.get_mut(ix))
+    fn active_of_mut(&mut self, ctype: ContainerType) -> Option<&mut Container> {
+        self.active_ix_of(ctype).and_then(move |ix| self.tree.get_mut(ix))
     }
 
     /// Gets the WlcOutput the active container is located on
@@ -149,10 +149,9 @@ impl LayoutTree {
 
     /// Gets a workspace by name or creates it
     fn get_or_make_workspace(&mut self, name: &str) -> NodeIndex {
+        let active_index = self.active_ix_of(ContainerType::Output).expect("get_or_make_wksp: Couldn't get output");
         self.workspace_ix_by_name(name).unwrap_or_else(||
-                    self.init_workspace(name.to_string(),
-                              self.active_ix_of(ContainerType::Output)
-                              .expect("get_or_make_wksp: Couldn't get output")))
+                    self.init_workspace(name.to_string(), active_index))
     }
 
     /// Gets a workspace by name
@@ -168,12 +167,12 @@ impl LayoutTree {
             .expect("init_workspace: no geometry for output").size;
         let worksp = Container::new_workspace(name.to_string(), size.clone());
 
-        let (_, worksp_ix) = self.tree.add_child(output_ix, worksp);
-        trace!("Added workspace {:?}", worksp);
+        trace!("Adding workspace {:?}", worksp);
+        let worksp_ix = self.tree.add_child(output_ix, worksp);
         let geometry = Geometry {
             size: size, origin: Point { x: 0, y: 0 }
         };
-        let (_, container_ix) = self.tree.add_child(worksp_ix,
+        let container_ix = self.tree.add_child(worksp_ix,
                                            Container::new_container(geometry));
         container_ix
     }
@@ -187,7 +186,8 @@ impl LayoutTree {
     /// workspace if using i3-style workspaces.
     pub fn add_output(&mut self, output: WlcOutput) {
         trace!("Adding new output with {:?}", output);
-        let (_, output_ix) = self.tree.add_child(self.tree.root_ix(),
+        let root_index = self.tree.root_ix();
+        let output_ix = self.tree.add_child(root_index,
                                           Container::new_output(output));
         self.active_container = Some(self.init_workspace("1".to_string(), output_ix));
         self.validate();
@@ -198,7 +198,7 @@ impl LayoutTree {
         if let Some(worksp_ix) = self.active_ix_of(ContainerType::Workspace) {
             trace!("Adding {:?} to workspace {:?}", view, worksp_ix);
             let container_ix = self.tree.children_of(worksp_ix)[0];
-            let (_, view_ix) = self.tree.add_child(container_ix,
+            let view_ix = self.tree.add_child(container_ix,
                                                    Container::new_view(view));
             self.active_container = Some(view_ix);
             self.validate();
