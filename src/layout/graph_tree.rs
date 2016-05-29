@@ -4,7 +4,7 @@
 use std::iter::Iterator;
 
 use petgraph::EdgeDirection;
-use petgraph::graph::{Graph, Node, Neighbors, NodeIndex, EdgeIndex};
+use petgraph::graph::{Graph, NodeIndex, EdgeIndex};
 
 use rustwlc::WlcView;
 
@@ -32,7 +32,7 @@ impl Tree {
 
     /// Gets the edge value of the largest child of the node
     fn largest_child(&self, node: NodeIndex) -> (NodeIndex, u32) {
-        use std::cmp::{self, Ord, Ordering};
+        use std::cmp::{Ord, Ordering};
         self.graph.edges_directed(node, EdgeDirection::Outgoing)
             .fold((node, 0), |(old_node, old_edge), (new_node, new_edge)|
                   match <u32 as Ord>::cmp(&old_edge, new_edge) {
@@ -174,7 +174,6 @@ impl Tree {
                            container_type: ContainerType) -> Option<NodeIndex> {
         let mut curr_ix = node_ix;
         while let Some(parent_ix) = self.parent_of(curr_ix) {
-            curr_ix = parent_ix;
             let parent = self.graph.node_weight(parent_ix)
                 .expect("ancestor_of_type: parent_of invalid");
             if parent.get_type() == container_type {

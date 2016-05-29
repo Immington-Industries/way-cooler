@@ -318,7 +318,6 @@ impl LayoutTree {
 
         // Get active
         if cfg!(debug_assertions) {
-            let workspace = self.tree.get(curr_work_ix);
             let work_children = self.tree.children_of(curr_work_ix);
             assert!(work_children.len() != 0, "Workspace has no children");
             assert!(self.tree.children_of(work_children[0]).iter().next().is_some(),
