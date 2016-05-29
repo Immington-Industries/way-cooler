@@ -210,20 +210,22 @@ impl LayoutTree {
 
     //// Remove a view container from the tree
     pub fn remove_view(&mut self, view: &WlcView) {
-        let mut maybe_parent = None;
         if let Some(view_ix) = self.tree.descendant_with_handle(self.tree.root_ix(), view) {
-            // Check to not disrupt
             if self.active_container.map(|c| c == view_ix).unwrap_or(false) {
-                let parent = self.tree.ancestor_of_type(view_ix, ContainerType::Container)
-                    .expect("remove_view: workspace had no other containers");
-                maybe_parent = Some(parent);
+                // Remove the view from the tree
+                self.tree.remove(view_ix);
+                // Update the active container if needed
+                if let Some(mut parent_index) = self.tree.ancestor_of_type(view_ix, ContainerType::Container) {
+                    // correct for node removal.
+                    // If the parent was the last node, then its index is now the previous view's
+                    if self.tree.get(parent_index).is_none() {
+                        parent_index = view_ix;
+                    }
+                    self.focus_on_next_container(parent_index);
+                }
             }
-            // Remove the view from the tree
-            self.tree.remove(view_ix);
-        }
-        // Update the active container if needed
-        if let Some(parent) = maybe_parent {
-            self.focus_on_next_container(parent);
+        } else {
+            warn!("Could not find descendant with handle {:#?} to remove", view);
         }
         self.validate();
     }
@@ -448,4 +450,3 @@ pub fn try_lock_tree() -> TreeResult {
     trace!("Locking the tree!");
     TREE.try_lock()
 }
-
