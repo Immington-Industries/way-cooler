@@ -150,8 +150,11 @@ impl LayoutTree {
     /// Gets a workspace by name or creates it
     fn get_or_make_workspace(&mut self, name: &str) -> NodeIndex {
         let active_index = self.active_ix_of(ContainerType::Output).expect("get_or_make_wksp: Couldn't get output");
-        self.workspace_ix_by_name(name).unwrap_or_else(||
-                    self.init_workspace(name.to_string(), active_index))
+        self.workspace_ix_by_name(name).unwrap_or_else(|| {
+            let root_ix = self.init_workspace(name.to_string(), active_index);
+            self.tree.parent_of(root_ix)
+                .expect("Workspace was not properly initialized with a root container")
+        })
     }
 
     /// Gets a workspace by name
