@@ -364,6 +364,7 @@ impl LayoutTree {
             self.focus_on_next_container(curr_work_ix);
         }
 
+        self.tree.set_family_visible(curr_work_ix, true);
         self.validate();
     }
 
