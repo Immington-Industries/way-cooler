@@ -228,7 +228,7 @@ impl Tree {
     pub fn set_family_visible(&mut self, node_ix: NodeIndex, visible: bool) {
         self.get_mut(node_ix).map(|c| c.set_visibility(visible));
         for child in self.children_of(node_ix) {
-            self.get_mut(child).map(|c| c.set_visibility(visible));
+            self.set_family_visible(child, visible);
         }
     }
 }

@@ -262,7 +262,10 @@ impl LayoutTree {
                 });
         }
         // If this is reached, parent is workspace
-        let container_ix = self.tree.children_of(parent_ix)[0];
+        let mut container_ix = self.tree.children_of(parent_ix)[0];
+        if let Some(view_ix) = self.tree.children_of(container_ix).get(0) {
+            container_ix = *view_ix;
+        }
         trace!("Active container set to container {:?}", container_ix);
         self.active_container = Some(container_ix);
 
@@ -285,9 +288,7 @@ impl LayoutTree {
         // Set old workspace to be invisible
         if let Some(old_worksp_ix) = self.active_ix_of(ContainerType::Workspace) {
             trace!("Switching to workspace {}", name);
-            //self.tree.set_family_visible(old_worksp_ix, false);
-            self.tree.get_mut(old_worksp_ix).expect("Asserted unwrap")
-                .set_visibility(false);
+            self.tree.set_family_visible(old_worksp_ix, false);
         } else {
             warn!("Could not find old workspace, could not set invisible");
             return;
@@ -295,8 +296,7 @@ impl LayoutTree {
         // Get the new workspace, or create one if it doesn't work
         let workspace_ix = self.get_or_make_workspace(name);
         // Set the new one to visible
-        self.tree.get_mut(workspace_ix).expect("Asserted unwrap")
-            .set_visibility(true);
+        self.tree.set_family_visible(workspace_ix, true);
         self.focus_on_next_container(workspace_ix);
         self.validate();
     }
