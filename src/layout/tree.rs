@@ -313,7 +313,6 @@ impl LayoutTree {
         let active_ix = self.active_container.expect("Asserted unwrap");
         let curr_work_ix = self.active_ix_of(ContainerType::Workspace)
             .expect("send_active: Not currently in a workspace!");
-        self.tree.set_family_visible(curr_work_ix, false);
         if active_ix == self.tree.children_of(curr_work_ix)[0] {
             warn!("Tried to move the root container of a workspace, aborting move");
             return;
@@ -325,6 +324,7 @@ impl LayoutTree {
             trace!("Attempted to move a view to the same workspace {}!", name);
             return;
         }
+        self.tree.set_family_visible(curr_work_ix, false);
 
         // Get active
         if cfg!(debug_assertions) {
@@ -356,8 +356,7 @@ impl LayoutTree {
             let ctype = self.tree.node_type(parent).unwrap_or(ContainerType::Root);
             if ctype == ContainerType::Container {
                 self.focus_on_next_container(parent);
-            }
-            else {
+            } else {
                 trace!("Send to container invalidated a NodeIndex: {:?} to {:?}",
                 parent, ctype);
             }
