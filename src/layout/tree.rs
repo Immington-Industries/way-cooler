@@ -311,6 +311,7 @@ impl LayoutTree {
         let active_ix = self.active_container.expect("Asserted unwrap");
         let curr_work_ix = self.active_ix_of(ContainerType::Workspace)
             .expect("send_active: Not currently in a workspace!");
+        self.tree.set_family_visible(curr_work_ix, false);
         if active_ix == self.tree.children_of(curr_work_ix)[0] {
             warn!("Tried to move the root container of a workspace, aborting move");
             return;
