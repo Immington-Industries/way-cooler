@@ -449,3 +449,129 @@ pub fn try_lock_tree() -> TreeResult {
     trace!("Locking the tree!");
     TREE.try_lock()
 }
+
+
+mod tests {
+
+
+    use super::super::graph_tree::Tree;
+    use super::*;
+    use layout::container::*;
+    use rustwlc::*;
+
+    #[cfg(test)]
+    /// Makes a very basic tree.
+    /// There is only one output,
+    /// Two workspaces,
+    /// First workspace has a single view in the root container,
+    /// second workspace has a container with two views in it
+    /// (the container is a child of the root container).
+    ///
+    /// The active container is the only view in the first workspace
+    #[allow(unused_variables)]
+    fn basic_tree() -> LayoutTree {
+        let mut tree = Tree::new();
+        let fake_view_1 = WlcView::root();
+        let fake_output = fake_view_1.clone().as_output();
+        let root_ix = tree.root_ix();
+        let fake_size = Size { h: 800, w: 600 };
+        let fake_geometry = Geometry {
+            size: fake_size.clone(),
+            origin: Point { x: 0, y: 0 }
+        };
+
+        let output_ix = tree.add_child(root_ix, Container::new_output(fake_output));
+        let workspace_1_ix = tree.add_child(output_ix,
+                                          Container::new_workspace("1".to_string(),
+                                                                   fake_size.clone()));
+        let root_container_1_ix = tree.add_child(workspace_1_ix,
+                                                 Container::new_container(fake_geometry.clone()));
+        let workspace_2_ix = tree.add_child(output_ix,
+                                            Container::new_workspace("2".to_string(),
+                                                                     fake_size.clone()));
+        let root_container_2_ix = tree.add_child(workspace_2_ix,
+                                                 Container::new_container(fake_geometry.clone()));
+        /* Workspace 1 containers */
+        let wkspc_1_view = tree.add_child(root_container_1_ix,
+                                          Container::new_view(fake_view_1.clone()));
+        /* Workspace 2 containers */
+        let wkspc_2_container = tree.add_child(root_container_2_ix,
+                                               Container::new_container(fake_geometry.clone()));
+        let wkspc_2_sub_view_1 = tree.add_child(wkspc_2_container,
+                                                Container::new_view(fake_view_1.clone()));
+        let wkspc_2_sub_view_2 = tree.add_child(wkspc_2_container,
+                                                Container::new_view(fake_view_1.clone()));
+
+        let layout_tree = LayoutTree {
+            tree: tree,
+            active_container: Some(wkspc_1_view)
+        };
+        layout_tree
+    }
+
+    #[test]
+    /// Ensures that getting the active container always returns either
+    /// a view, a container, or nothing.
+    fn active_container_tests() {
+        let mut simple_tree = basic_tree();
+        /* Standard active_container getters */
+        {
+            let active_container = simple_tree.get_active_container().unwrap();
+            let view_ancestor_ix = simple_tree.active_ix_of(ContainerType::View).unwrap();
+            assert_eq!(*active_container, simple_tree.tree[view_ancestor_ix]);
+            match *active_container {
+                Container::View { .. }| Container::Container { .. }=> {},
+                _ => panic!("Active container was not a view or container!")
+            }
+        }
+        {
+            let active_container_mut = simple_tree.get_active_container_mut().unwrap();
+            match *active_container_mut {
+                Container::View { .. }| Container::Container { .. }=> {},
+            _ => panic!("Active container was not a view or container!")
+            }
+        }
+        /* Active workspace getters */
+        {
+            let active_workspace = simple_tree.get_active_workspace().unwrap();
+            let workspace_ancestor_ix = simple_tree.active_ix_of(ContainerType::Workspace).unwrap();
+            assert_eq!(*active_workspace, simple_tree.tree[workspace_ancestor_ix]);
+            match *active_workspace {
+                Container::Workspace { ref name, .. } => {
+                    assert_eq!(name.as_str(), "1")
+                },
+                _ => panic!("get_active_workspace did not return a workspace")
+            }
+        }
+        {
+            let active_workspace_mut = simple_tree.get_active_workspace_mut().unwrap();
+            match *active_workspace_mut {
+                Container::Workspace { ref name, .. } => {
+                assert_eq!(name.as_str(), "1")
+            },
+            _ => panic!("get_active_workspace did not return a workspace")
+            }
+        }
+        /* Active output getters */
+        {
+            let active_output = simple_tree.get_active_output().unwrap();
+            let output_ancestor_ix = simple_tree.active_ix_of(ContainerType::Output).unwrap();
+            assert_eq!(*active_output, simple_tree.tree[output_ancestor_ix]);
+            match *active_output {
+                Container::Output { ref handle, .. } => {
+                    assert_eq!(*handle, WlcView::root().as_output());
+                }
+                _ => panic!("get_active_output did not return an output")
+            }
+        }
+        {
+            let active_output_mut = simple_tree.get_active_output_mut().unwrap();
+            match *active_output_mut {
+                Container::Output { ref handle, .. } => {
+                    assert_eq!(*handle, WlcView::root().as_output());
+                }
+                _ => panic!("get_active_output did not return an output")
+            }
+        }
+    }
+}

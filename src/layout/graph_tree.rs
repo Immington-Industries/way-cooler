@@ -44,8 +44,8 @@ impl Tree {
                   })
     }
 
-    /// Adds a new child to a node at the index, returning the edge index
-    /// of their connection and the index of the new node.
+    /// Adds a new child to a node at the index, returning the node index
+    /// of the new child node.
     pub fn add_child(&mut self, parent_ix: NodeIndex, val: Container) -> NodeIndex {
         let child_ix = self.graph.add_node(val);
         self.attach_child(parent_ix, child_ix);
