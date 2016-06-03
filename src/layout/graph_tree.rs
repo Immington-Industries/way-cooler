@@ -224,6 +224,26 @@ impl Tree {
         })
     }
 
+    /// Returns the node indices of any node that is a descendant of a node
+    pub fn all_descendants_of(&self, node_ix: &NodeIndex) -> Vec<NodeIndex> {
+        let mut index: usize = 0;
+        let mut nodes: Vec<NodeIndex> = self.graph.edges_directed(*node_ix,
+                                                      EdgeDirection::Outgoing)
+            .map(|(ix, _)| ix).collect();
+        while index != nodes.len() {
+            let cur_node: &NodeIndex = &nodes[index].clone();
+            let children = self.graph.edges_directed(*cur_node,
+                                                     EdgeDirection::Outgoing);
+            let size_hint = children.size_hint();
+            nodes.reserve(size_hint.1.unwrap_or(size_hint.0));
+            for (ix, _) in children {
+                nodes.push(ix);
+            }
+            index += 1;
+        }
+        nodes
+    }
+
     /// Sets the node and its children's visibility
     pub fn set_family_visible(&mut self, node_ix: NodeIndex, visible: bool) {
         self.get_mut(node_ix).map(|c| c.set_visibility(visible));
@@ -248,4 +268,69 @@ impl IndexMut<NodeIndex> for Tree {
     fn index_mut(&mut self, index: NodeIndex) -> &mut Self::Output {
         self.get_mut(index).expect("graph_tree: node not found")
     }
+}
+
+mod tests {
+
+    use super::*;
+    use layout::container::*;
+    use rustwlc::*;
+
+    #[cfg(test)]
+    /// Makes a very basic tree.
+    /// There is only one output,
+    /// Two workspaces,
+    /// First workspace has a single view in the root container,
+    /// second workspace has a container with two views in it
+    /// (the container is a child of the root container).
+    ///
+    /// The active container is the only view in the first workspace
+    #[allow(unused_variables)]
+    fn basic_tree() -> Tree {
+        let mut tree = Tree::new();
+        let fake_view_1 = WlcView::root();
+        let fake_output = fake_view_1.clone().as_output();
+        let root_ix = tree.root_ix();
+        let fake_size = Size { h: 800, w: 600 };
+        let fake_geometry = Geometry {
+            size: fake_size.clone(),
+            origin: Point { x: 0, y: 0 }
+        };
+
+        let output_ix = tree.add_child(root_ix, Container::new_output(fake_output));
+        let workspace_1_ix = tree.add_child(output_ix,
+                                                Container::new_workspace("1".to_string(),
+                                                                   fake_size.clone()));
+        let root_container_1_ix = tree.add_child(workspace_1_ix,
+                                                Container::new_container(fake_geometry.clone()));
+        let workspace_2_ix = tree.add_child(output_ix,
+                                                Container::new_workspace("2".to_string(),
+                                                                     fake_size.clone()));
+        let root_container_2_ix = tree.add_child(workspace_2_ix,
+                                                Container::new_container(fake_geometry.clone()));
+        /* Workspace 1 containers */
+        let wkspc_1_view = tree.add_child(root_container_1_ix,
+                                                Container::new_view(fake_view_1.clone()));
+        /* Workspace 2 containers */
+        let wkspc_2_container = tree.add_child(root_container_2_ix,
+                                                Container::new_container(fake_geometry.clone()));
+        let wkspc_2_sub_view_1 = tree.add_child(wkspc_2_container,
+                                                Container::new_view(fake_view_1.clone()));
+        let wkspc_2_sub_view_2 = tree.add_child(wkspc_2_container,
+                                                Container::new_view(fake_view_1.clone()));
+        tree
+    }
+
+    #[test]
+    fn test_descendents_of() {
+        let basic_tree = basic_tree();
+        let children_of_root = basic_tree.all_descendants_of(&basic_tree.root);
+        assert_eq!(children_of_root.len(), 9);
+        let simple_view = basic_tree.descendant_of_type(basic_tree.root,
+                                                        ContainerType::View)
+            .expect("No view in the basic test tree");
+        let children_of_view = basic_tree.all_descendants_of(&simple_view);
+        assert_eq!(children_of_view.len(), 0);
+    }
+
 }
