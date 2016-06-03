@@ -79,12 +79,6 @@ lazy_static! {
 }
 
 impl LayoutTree {
-
-
-    fn active_ix(&self) -> Option<NodeIndex> {
-        self.active_container
-    }
-
     /// Gets the currently active container.
     pub fn get_active_container(&self) -> Option<&Container> {
         self.active_container.and_then(|ix| self.tree.get(ix))
@@ -204,7 +198,7 @@ impl LayoutTree {
 
     /// Add a new view container with the given WlcView to the active container
     pub fn add_view(&mut self, view: WlcView) {
-        if let Some(mut active_ix) = self.active_ix() {
+        if let Some(mut active_ix) = self.active_container {
             if self.tree[active_ix].get_type() == ContainerType::View {
                 active_ix = self.tree.parent_of(active_ix)
                     .expect("View had no parent");
@@ -617,7 +611,7 @@ mod tests {
     /// Tests the view functions
     fn view_tests() {
         let mut tree = basic_tree();
-        let active_container = tree.active_ix().expect("No active container");
+        let active_container = tree.active_container.expect("No active container");
         let parent_container = tree.tree.parent_of(active_container).unwrap();
         // When the active container is a view, add it as a sibling
         assert_eq!(tree.tree.children_of(parent_container).len(), 1);
