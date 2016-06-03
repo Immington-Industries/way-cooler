@@ -79,6 +79,12 @@ lazy_static! {
 }
 
 impl LayoutTree {
+
+
+    fn active_ix(&self) -> Option<NodeIndex> {
+        self.active_container
+    }
+
     /// Gets the currently active container.
     pub fn get_active_container(&self) -> Option<&Container> {
         self.active_container.and_then(|ix| self.tree.get(ix))
@@ -198,11 +204,13 @@ impl LayoutTree {
 
     /// Add a new view container with the given WlcView to the active container
     pub fn add_view(&mut self, view: WlcView) {
-        if let Some(worksp_ix) = self.active_ix_of(ContainerType::Workspace) {
-            trace!("Adding {:?} to workspace {:?}", view, worksp_ix);
-            let container_ix = self.tree.children_of(worksp_ix)[0];
-            let view_ix = self.tree.add_child(container_ix,
-                                                   Container::new_view(view));
+        if let Some(mut active_ix) = self.active_ix() {
+            if self.tree[active_ix].get_type() == ContainerType::View {
+                active_ix = self.tree.parent_of(active_ix)
+                    .expect("View had no parent");
+            }
+            let view_ix = self.tree.add_child(active_ix,
+                                              Container::new_view(view));
             self.active_container = Some(view_ix);
             self.validate();
         }
@@ -482,21 +490,21 @@ mod tests {
 
         let output_ix = tree.add_child(root_ix, Container::new_output(fake_output));
         let workspace_1_ix = tree.add_child(output_ix,
-                                          Container::new_workspace("1".to_string(),
+                                                Container::new_workspace("1".to_string(),
                                                                    fake_size.clone()));
         let root_container_1_ix = tree.add_child(workspace_1_ix,
-                                                 Container::new_container(fake_geometry.clone()));
+                                                Container::new_container(fake_geometry.clone()));
         let workspace_2_ix = tree.add_child(output_ix,
-                                            Container::new_workspace("2".to_string(),
+                                                Container::new_workspace("2".to_string(),
                                                                      fake_size.clone()));
         let root_container_2_ix = tree.add_child(workspace_2_ix,
-                                                 Container::new_container(fake_geometry.clone()));
+                                                Container::new_container(fake_geometry.clone()));
         /* Workspace 1 containers */
         let wkspc_1_view = tree.add_child(root_container_1_ix,
-                                          Container::new_view(fake_view_1.clone()));
+                                                Container::new_view(fake_view_1.clone()));
         /* Workspace 2 containers */
         let wkspc_2_container = tree.add_child(root_container_2_ix,
-                                               Container::new_container(fake_geometry.clone()));
+                                                Container::new_container(fake_geometry.clone()));
         let wkspc_2_sub_view_1 = tree.add_child(wkspc_2_container,
                                                 Container::new_view(fake_view_1.clone()));
         let wkspc_2_sub_view_2 = tree.add_child(wkspc_2_container,
@@ -603,6 +611,17 @@ mod tests {
         assert_eq!(tree.tree[workspace_3_ix].get_type(), ContainerType::Workspace);
         assert_eq!(tree.tree[workspace_3_ix].get_name().unwrap(), "3");
         */
+    }
 
+    #[test]
+    /// Tests the view functions
+    fn view_tests() {
+        let mut tree = basic_tree();
+        let active_container = tree.active_ix().expect("No active container");
+        let parent_container = tree.tree.parent_of(active_container).unwrap();
+        // When the active container is a view, add it as a sibling
+        assert_eq!(tree.tree.children_of(parent_container).len(), 1);
+        tree.add_view(WlcView::root());
+        assert_eq!(tree.tree.children_of(parent_container).len(), 2);
     }
 }
