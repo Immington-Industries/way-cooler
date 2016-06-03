@@ -574,4 +574,35 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    /// Tests workspace functions, ensuring we can get workspaces and new
+    /// ones are properly generated with a root container when we request one
+    /// that doesn't yet exist
+    fn workspace_tests() {
+        let tree = basic_tree();
+        /* Simple workspace access tests */
+        let workspace_1_ix = tree.workspace_ix_by_name("1")
+            .expect("Workspace 1 did not exist");
+        assert_eq!(tree.tree[workspace_1_ix].get_type(), ContainerType::Workspace);
+        assert_eq!(tree.tree[workspace_1_ix].get_name().unwrap(), "1");
+        let workspace_2_ix = tree.workspace_ix_by_name("2")
+            .expect("Workspace 2 did not exist");
+        assert_eq!(tree.tree[workspace_2_ix].get_type(), ContainerType::Workspace);
+        assert_eq!(tree.tree[workspace_2_ix].get_name().unwrap(), "2");
+        assert!(tree.workspace_ix_by_name("3").is_none(),
+                "Workspace three existed, expected it not to");
+        /* init workspace tests */
+        let _output_ix = tree.active_ix_of(ContainerType::Output)
+            .expect("No active output");
+        // Can't test init_workspace, segfaults when it uses the output handle
+        /*
+        let workspace_3_ix = tree.init_workspace("3".to_string(), output_ix);
+        assert!(tree.workspace_ix_by_name("3").is_some(),
+                "Workspace three still does not exist, even though we just initialized it");
+        assert_eq!(tree.tree[workspace_3_ix].get_type(), ContainerType::Workspace);
+        assert_eq!(tree.tree[workspace_3_ix].get_name().unwrap(), "3");
+        */
+
+    }
 }
