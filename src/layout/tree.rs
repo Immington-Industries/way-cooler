@@ -213,23 +213,56 @@ impl LayoutTree {
     //// Remove a view container from the tree
     pub fn remove_view(&mut self, view: &WlcView) {
         if let Some(view_ix) = self.tree.descendant_with_handle(self.tree.root_ix(), view) {
-            if self.active_container.map(|c| c == view_ix).unwrap_or(false) {
-                // Remove the view from the tree
-                self.tree.remove(view_ix);
-                // Update the active container if needed
-                if let Some(mut parent_index) = self.tree.ancestor_of_type(view_ix, ContainerType::Container) {
-                    // correct for node removal.
-                    // If the parent was the last node, then its index is now the previous view's
-                    if self.tree.get(parent_index).is_none() {
-                        parent_index = view_ix;
-                    }
-                    self.focus_on_next_container(parent_index);
-                }
-            }
+            self.remove_view_or_container(view_ix);
         } else {
             warn!("Could not find descendant with handle {:#?} to remove", view);
         }
         self.validate();
+    }
+
+    /// Special code to handle removing a View or Container.
+    /// We have to ensure that we aren't invalidating the active container
+    /// when we remove a view or container.
+    fn remove_view_or_container(&mut self, node_ix: NodeIndex) {
+        if self.active_container.map(|c| c == node_ix).unwrap_or(false) {
+            // Remove the view from the tree
+            self.tree.remove(node_ix);
+            // Update the active container if needed
+            if let Some(mut parent_index) = self.tree.ancestor_of_type(node_ix,
+                                                                       ContainerType::Container) {
+                // correct for node removal.
+                // If the parent was the last node, then its index is now the previous view's
+                if self.tree.get(parent_index).is_none() {
+                    parent_index = node_ix;
+                }
+                self.focus_on_next_container(parent_index);
+            }
+        } else {
+            self.tree.remove(node_ix);
+        }
+    }
+
+    /// Remove a  container from the tree.
+    /// The active container is preserved after this operation,
+    /// if it was moved then it's new index will be reflected in the structure
+    ///
+    /// Note that because this causes N indices to be changed (where N is the
+    /// number of children of the container), any node indices should be
+    /// considered invalid after this operation (except for the active_container)
+    fn remove_container(&mut self, container_ix: NodeIndex) {
+        let mut children = self.tree.all_descendants_of(&container_ix);
+        // add current container to the list as well
+        children.push(container_ix);
+        // Sort by highest to lowest
+        children.sort_by(|a, b| b.cmp(a));
+        for node_ix in children {
+            match self.tree[node_ix] {
+                Container::View { .. } | Container::Container { .. } => {
+                    self.remove_view_or_container(node_ix);
+                },
+                _ => { self.tree.remove(node_ix); },
+            }
+        }
     }
 
     /// Updates the current active container to be the next container or view
@@ -290,7 +323,9 @@ impl LayoutTree {
             return;
         }
         // Set old workspace to be invisible
-        if let Some(old_worksp_ix) = self.active_ix_of(ContainerType::Workspace) {
+        let old_worksp_ix: NodeIndex;
+        if let Some(index) = self.active_ix_of(ContainerType::Workspace) {
+            old_worksp_ix = index;
             trace!("Switching to workspace {}", name);
             self.tree.set_family_visible(old_worksp_ix, false);
         } else {
@@ -299,9 +334,16 @@ impl LayoutTree {
         }
         // Get the new workspace, or create one if it doesn't work
         let workspace_ix = self.get_or_make_workspace(name);
+        if old_worksp_ix == workspace_ix {
+            return;
+        }
         // Set the new one to visible
         self.tree.set_family_visible(workspace_ix, true);
         self.focus_on_next_container(workspace_ix);
+        // Delete the old workspace if it has no views on it
+        if self.tree.descendant_of_type(old_worksp_ix, ContainerType::View).is_none() {
+            self.remove_container(old_worksp_ix);
+        }
         self.validate();
     }
 
@@ -453,15 +495,14 @@ pub fn try_lock_tree() -> TreeResult {
 }
 
 
+#[cfg(test)]
 mod tests {
-
 
     use super::super::graph_tree::Tree;
     use super::*;
     use layout::container::*;
     use rustwlc::*;
 
-    #[cfg(test)]
     /// Makes a very basic tree.
     /// There is only one output,
     /// Two workspaces,
