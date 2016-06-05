@@ -225,8 +225,6 @@ impl LayoutTree {
     /// when we remove a view or container.
     fn remove_view_or_container(&mut self, node_ix: NodeIndex) {
         if self.active_container.map(|c| c == node_ix).unwrap_or(false) {
-            // Remove the view from the tree
-            self.tree.remove(node_ix);
             // Update the active container if needed
             if let Some(mut parent_index) = self.tree.ancestor_of_type(node_ix,
                                                                        ContainerType::Container) {
@@ -235,6 +233,8 @@ impl LayoutTree {
                 if self.tree.get(parent_index).is_none() {
                     parent_index = node_ix;
                 }
+                // Remove the view from the tree
+                self.tree.remove(node_ix);
                 self.focus_on_next_container(parent_index);
             }
         } else {
