@@ -206,8 +206,8 @@ impl LayoutTree {
             let view_ix = self.tree.add_child(active_ix,
                                               Container::new_view(view));
             self.active_container = Some(view_ix);
-            self.validate();
         }
+        self.validate();
     }
 
     //// Remove a view container from the tree
@@ -245,9 +245,6 @@ impl LayoutTree {
                 self.tree.remove(node_ix);
             }
         }
-        // breaks when deleting workspace
-        // make workspace-specific function
-        //self.validate();
     }
 
     /// Remove a  container from the tree.
@@ -272,6 +269,7 @@ impl LayoutTree {
                 _ => { self.tree.remove(node_ix); },
             }
         }
+        self.validate();
     }
 
     /// Updates the current active container to be the next container or view
