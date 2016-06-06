@@ -245,7 +245,9 @@ impl LayoutTree {
                 self.tree.remove(node_ix);
             }
         }
-        self.validate();
+        // breaks when deleting workspace
+        // make workspace-specific function
+        //self.validate();
     }
 
     /// Remove a  container from the tree.
@@ -262,6 +264,7 @@ impl LayoutTree {
         // Sort by highest to lowest
         children.sort_by(|a, b| b.cmp(a));
         for node_ix in children {
+            trace!("Removing index {:?}: {:?}", node_ix, self.tree[node_ix]);
             match self.tree[node_ix] {
                 Container::View { .. } | Container::Container { .. } => {
                     self.remove_view_or_container(node_ix);
@@ -339,16 +342,21 @@ impl LayoutTree {
             return;
         }
         // Get the new workspace, or create one if it doesn't work
-        let workspace_ix = self.get_or_make_workspace(name);
+        let mut workspace_ix = self.get_or_make_workspace(name);
         if old_worksp_ix == workspace_ix {
             return;
         }
         // Set the new one to visible
         self.tree.set_family_visible(workspace_ix, true);
         // Delete the old workspace if it has no views on it
+        self.active_container = None;
         if self.tree.descendant_of_type(old_worksp_ix, ContainerType::View).is_none() {
+            trace!("Removing workspace: {:?}", self.tree[old_worksp_ix].get_name()
+                   .expect("Workspace had no name"));
             self.remove_container(old_worksp_ix);
         }
+        workspace_ix = self.workspace_ix_by_name(name)
+            .expect("Workspace we just made was deleted!");
         self.focus_on_next_container(workspace_ix);
         self.validate();
     }
