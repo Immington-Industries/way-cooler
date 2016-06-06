@@ -63,7 +63,7 @@ macro_rules! keypress {
 #[cfg(test)]
 macro_rules! require_rustwlc {
     () => {
-        if option_env!("DUMMY_RUSTWLC").is_some() {
+        if cfg!(test) {
             return;
         }
     }
