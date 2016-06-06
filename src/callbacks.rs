@@ -58,6 +58,7 @@ pub extern fn view_created(view: WlcView) -> bool {
     let output = view.get_output();
     if let Ok(mut tree) = tree::try_lock_tree() {
         tree.add_view(view.clone());
+        drop(tree);
         view.set_mask(output.get_mask());
         view.bring_to_front();
         view.focus();
@@ -79,6 +80,14 @@ pub extern fn view_destroyed(view: WlcView) {
 pub extern fn view_focus(current: WlcView, focused: bool) {
     trace!("view_focus: {:?} {}", current, focused);
     current.set_state(VIEW_ACTIVATED, focused);
+    // set the focus view in the tree
+    {
+        // If tree is already grabbed,
+        // it should have the active container all set
+        if let Ok(mut tree) = tree::try_lock_tree() {
+            tree.set_active_container(current.clone());
+        }
+    }
 }
 
 pub extern fn view_move_to_output(current: WlcView,

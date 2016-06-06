@@ -79,6 +79,14 @@ lazy_static! {
 }
 
 impl LayoutTree {
+    /// Sets the active container by finding the node with the WlcView
+    pub fn set_active_container(&mut self, handle: WlcView) {
+        info!("Active container was: {:?}", self.active_container);
+        if let Some(node_ix) = self.tree.descendant_with_handle(self.tree.root_ix(), &handle) {
+            self.active_container = Some(node_ix);
+        }
+        info!("Active container is now: {:?}", self.active_container);
+    }
     /// Gets the currently active container.
     pub fn get_active_container(&self) -> Option<&Container> {
         self.active_container.and_then(|ix| self.tree.get(ix))
