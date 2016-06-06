@@ -226,20 +226,26 @@ impl LayoutTree {
     fn remove_view_or_container(&mut self, node_ix: NodeIndex) {
         if self.active_container.map(|c| c == node_ix).unwrap_or(false) {
             // Update the active container if needed
-            if let Some(mut parent_index) = self.tree.ancestor_of_type(node_ix,
+            if let Some(parent_index) = self.tree.ancestor_of_type(node_ix,
                                                                        ContainerType::Container) {
-                // correct for node removal.
-                // If the parent was the last node, then its index is now the previous view's
-                if self.tree.get(parent_index).is_none() {
-                    parent_index = node_ix;
-                }
                 // Remove the view from the tree
                 self.tree.remove(node_ix);
                 self.focus_on_next_container(parent_index);
             }
         } else {
-            self.tree.remove(node_ix);
+            // If the active container is the last index in the node array,
+            // its index will become this one.
+            if let Some(mut active_ix) = self.active_container {
+                if self.tree.is_last_ix(active_ix) {
+                    active_ix = node_ix;
+                }
+                self.tree.remove(node_ix);
+                self.active_container = Some(active_ix);
+            } else {
+                self.tree.remove(node_ix);
+            }
         }
+        self.validate();
     }
 
     /// Remove a  container from the tree.
@@ -339,11 +345,11 @@ impl LayoutTree {
         }
         // Set the new one to visible
         self.tree.set_family_visible(workspace_ix, true);
-        self.focus_on_next_container(workspace_ix);
         // Delete the old workspace if it has no views on it
         if self.tree.descendant_of_type(old_worksp_ix, ContainerType::View).is_none() {
             self.remove_container(old_worksp_ix);
         }
+        self.focus_on_next_container(workspace_ix);
         self.validate();
     }
 

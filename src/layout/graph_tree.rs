@@ -251,6 +251,16 @@ impl Tree {
             self.set_family_visible(child, visible);
         }
     }
+
+    /// Determines if a Node index is the last one in the adjacency list
+    /// (and so will be moved in a removal)
+    pub fn is_last_ix(&self, node_ix: NodeIndex) -> bool {
+        if self.graph.node_count() == 0 {
+            false
+        } else {
+            self.graph.node_count() - 1 == node_ix.index()
+        }
+    }
 }
 
 use std::ops::{Index, IndexMut};
