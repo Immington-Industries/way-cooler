@@ -674,8 +674,14 @@ mod tests {
         let parent_container = tree.tree.parent_of(active_container).unwrap();
         // When the active container is a view, add it as a sibling
         assert_eq!(tree.tree.children_of(parent_container).len(), 1);
+        let old_active_view = tree.active_ix_of(ContainerType::View)
+            .expect("Active container was not a view");
         tree.add_view(WlcView::root());
         assert_eq!(tree.tree.children_of(parent_container).len(), 2);
+        assert!(! (old_active_view == tree.active_ix_of(ContainerType::View).unwrap()));
+        tree.remove_view(&WlcView::root());
+        assert_eq!(tree.active_ix_of(ContainerType::View).unwrap(), old_active_view);
+        assert_eq!(tree.tree.children_of(parent_container).len(), 1);
     }
 
     #[test]
