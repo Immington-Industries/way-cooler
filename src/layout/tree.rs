@@ -659,4 +659,25 @@ mod tests {
         tree.add_view(WlcView::root());
         assert_eq!(tree.tree.children_of(parent_container).len(), 2);
     }
+
+    #[test]
+    /// Tests that we can remove the active container and have it properly reset
+    fn basic_removal() {
+        let mut tree = basic_tree();
+        let active_view_ix = tree.active_container
+            .expect("No active container on basic tree");
+        assert!(tree.tree[active_view_ix].get_type() == ContainerType::View,
+                "Active container was not a view");
+        let workspace_of_active = tree.tree.ancestor_of_type(active_view_ix,
+                                                             ContainerType::Workspace)
+            .expect("View not part of workspace");
+        // The next active container should be the root container of this workspace
+        let new_active_container_ix = &tree.tree.children_of(workspace_of_active)[0];
+
+        tree.remove_view_or_container(active_view_ix);
+        let new_active_container = tree.active_container
+            .expect("Remove view invalidated the active container");
+        assert_eq!(new_active_container, *new_active_container_ix);
+
+    }
 }
