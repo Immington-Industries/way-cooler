@@ -15,3 +15,7 @@ log = "0.3.*"
 env_logger = "0.3.*"
 hlua = "0.1.*"
 bitflags = "0.6.*"
+petgraph = "0.2.*"
+
+[dev-dependencies]
+dummy-rustwlc = "0.3.*"

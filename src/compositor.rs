@@ -5,12 +5,14 @@ use std::sync::RwLock;
 
 use rustwlc;
 use rustwlc::*;
+use layout::tree;
 
 lazy_static! {
     static ref COMPOSITOR: RwLock<Compositor> = RwLock::new(Compositor::new());
 }
 
 const ERR_LOCK: &'static str = "Unable to lock compositor!";
+const ERR_TREE: &'static str = "Unable to lock tree!";
 const ERR_GEO: &'static str = "Unable to access view geometry!";
 
 #[derive(Debug, PartialEq)]
@@ -160,6 +162,10 @@ pub fn start_interactive_move(view: &WlcView, origin: &Point) -> bool {
         }
         comp.grab = origin.clone();
         comp.view = Some(view.clone());
+        {
+            let mut tree = tree::try_lock_tree().expect(ERR_TREE);
+            tree.set_active_container(view.clone());
+        }
         true
     } else {
         false
@@ -279,6 +285,10 @@ fn start_interactive_action(view: &WlcView, origin: &Point) -> Result<(), &'stat
         }
         comp.grab = origin.clone();
         comp.view = Some(view.clone());
+        {
+            let mut tree = tree::try_lock_tree().expect(ERR_TREE);
+            tree.set_active_container(view.clone());
+        }
     }
 
     view.bring_to_front();

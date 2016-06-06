@@ -24,11 +24,27 @@ macro_rules! gen_switch_workspace {
     ($map:expr; $($b:ident, $n:expr);+) => {
         $(fn $b() {
             trace!("Switching to workspace {}", $n);
-            tree::switch_workspace(&$n.to_string())
-                .expect("Could not switch to a work-space");
-                }
+            if let Ok(mut tree)  = tree::try_lock_tree() {
+                tree.switch_to_workspace(&$n);
+            }
+        }
           register_defaults!( $map; $b, keypress!("Alt", $n) );
           )+
+    };
+}
+
+/// Generate move_container_to methods and register them in $map
+macro_rules! gen_move_to_workspace {
+    ($map:expr; $($b:ident, $n:expr);+) => {
+        $(fn $b() {
+            trace!("Moving active container to {}", $n);
+            if let Ok(mut tree) = tree::try_lock_tree() {
+                tree.send_active_to_workspace(&$n);
+            }
+        }
+          register_defaults!( $map; $b, KeyPress::from_key_names(vec!["Alt", "Shift"],
+                                                                vec![$n]).unwrap());
+        )+
     };
 }
 
@@ -36,6 +52,17 @@ lazy_static! {
     static ref BINDINGS: RwLock<HashMap<KeyPress, KeyEvent>> = {
         let mut map = HashMap::<KeyPress, KeyEvent>::new();
 
+        gen_move_to_workspace!(map;
+                               move_to_workspace_1, "1";
+                               move_to_workspace_2, "2";
+                               move_to_workspace_3, "3";
+                               move_to_workspace_4, "4";
+                               move_to_workspace_5, "5";
+                               move_to_workspace_6, "6";
+                               move_to_workspace_7, "7";
+                               move_to_workspace_8, "8";
+                               move_to_workspace_9, "9";
+                               move_to_workspace_0, "0");
 
         gen_switch_workspace!(map; switch_workspace_1, "1";
                               switch_workspace_2, "2";

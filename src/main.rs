@@ -5,7 +5,11 @@ extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
 
+#[cfg(not(test))]
 extern crate rustwlc;
+
+#[cfg(test)]
+extern crate dummy_rustwlc as rustwlc;
 
 #[macro_use]
 extern crate log;
@@ -13,6 +17,8 @@ extern crate env_logger;
 
 #[macro_use]
 extern crate hlua;
+
+extern crate petgraph;
 
 use std::env;
 

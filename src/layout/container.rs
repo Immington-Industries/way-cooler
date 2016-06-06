@@ -1,6 +1,7 @@
 //! Container types
 
 use rustwlc::handle::{WlcView, WlcOutput};
+use rustwlc::{Geometry, Point, Size, ResizeEdge};
 
 /// A handle to either a view or output
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -9,6 +10,7 @@ pub enum Handle {
     Output(WlcOutput)
 }
 
+/// Types of containers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContainerType {
     /// Root container, only one exists
@@ -73,7 +75,10 @@ pub enum Container {
         /// Whether the workspace is focused
         ///
         /// Multiple workspaces can be focused
-        focused: bool
+        focused: bool,
+        /// The size of the workspace on the screen.
+        /// Might be different if there is e.g a bar present
+        size: Size,
     },
     /// Container
     Container {
@@ -85,6 +90,8 @@ pub enum Container {
         focused: bool,
         /// If the container is floating
         floating: bool,
+        /// The geometry of the container, relative to the parent container
+        geometry: Geometry,
     },
     /// View or window
     View {
@@ -100,11 +107,6 @@ pub enum Container {
 }
 
 impl Container {
-    /// Creates a new root container
-    pub fn new_root() -> Container {
-        Container::Root
-    }
-
     /// Creates a new output container with the given output
     pub fn new_output(handle: WlcOutput) -> Container {
         Container::Output {
@@ -113,21 +115,23 @@ impl Container {
         }
     }
 
-    /// Creates a new workspace container with the given name
-    pub fn new_workspace(name: String) -> Container {
+    /// Creates a new workspace container with the given name and size.
+    /// Usually the size is the same as the output it resides on,
+    /// unless there is a bar or something.
+    pub fn new_workspace(name: String, size: Size) -> Container {
         Container::Workspace {
-            name: name, focused: false
+            name: name, focused: false, size: size
         }
     }
 
     /// Creates a new container
-    #[allow(dead_code)]
-    pub fn new_container() -> Container {
+    pub fn new_container(geometry: Geometry) -> Container {
         Container::Container {
-            layout: Layout::Horizontal, // default layout?
+            layout: Layout::Floating,
             visible: false,
             focused: false,
-            floating: false
+            floating: false,
+            geometry: geometry
         }
     }
 
@@ -146,12 +150,14 @@ impl Container {
         match *self {
             Container::View { ref mut visible, .. } => *visible = visibility,
             Container::Container { ref mut visible, .. } => *visible = visibility,
-            _ => {},
+            _ => {return},
         }
         let mask = if visibility { 1 } else { 0 };
         if let Some(handle) = self.get_handle() {
             match handle {
-                Handle::View(view) => view.set_mask(mask),
+                Handle::View(view) => {
+                    view.set_mask(mask)
+                },
                 _ => {},
             }
         }
@@ -205,6 +211,47 @@ impl Container {
             _ => false
         }
     }
+
+    /// Gets the geometry of the container, if the container has one.
+    /// Root: Returns None
+    /// Workspace/Output: Size is the size of the screen, origin is just 0,0
+    /// Container/View: Size is the size of the container,
+    /// origin is the coordinates relative to the parent container.
+    pub fn get_geometry(&self) -> Option<Geometry> {
+        match *self {
+            Container::Root { .. } => None,
+            Container::Output { ref handle, .. } => Some(Geometry {
+                origin: Point { x: 0, y: 0 },
+                size: handle.get_resolution().clone(),
+            }),
+            Container::Workspace { ref size, .. } => Some(Geometry {
+                origin: Point { x: 0, y: 0},
+                size: size.clone()
+            }),
+            Container::Container { ref geometry, .. } => Some(geometry.clone()),
+            Container::View { ref handle, ..} => {
+                Some(handle.get_geometry().expect(
+                    "View did not have a geometry").clone())
+            },
+        }
+    }
+
+    /// Sets the geometry of the container, if it supports that operation.
+    /// Only Views, Containers, and Workspaces support this operation,
+    /// all others will return an Err with an appropriate error message.
+    ///
+    /// If setting a workspace, only the size of the geometry is set.
+    #[allow(dead_code)]
+    pub fn set_geometry(&mut self, new_geometry: Geometry) -> Result<(), String> {
+        match *self {
+            Container::Workspace { ref mut size, .. } => *size = new_geometry.size,
+            Container::Container { ref mut geometry, .. } => *geometry = new_geometry,
+            Container::View { ref handle, .. } =>
+                handle.set_geometry(ResizeEdge::empty(), &new_geometry),
+            _ => { return Err(format!("Could not set geometry on {:?}", self))}
+        };
+        return Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -249,5 +296,51 @@ mod tests {
         assert!(!view.can_have_child(workspace), "! View > workspace");
         assert!(!view.can_have_child(container), "! View > container");
         assert!(!view.can_have_child(view),      "! View > view");
+    }
+
+    #[test]
+    /// Tests set and get geometry
+    fn geometry_test() {
+        use rustwlc::*;
+        let test_geometry1 = Geometry {
+            origin: Point { x: 800, y: 600 },
+            size: Size { w: 500, h: 500}
+        };
+        let test_geometry2 = Geometry {
+            origin: Point { x: 1024, y: 2048},
+            size: Size { w: 500, h: 700}
+        };
+        let mut root = Container::Root;
+        assert!(root.get_geometry().is_none());
+        assert!(root.set_geometry(test_geometry1.clone()).is_err());
+
+        let mut output = Container::new_output(WlcView::root().as_output());
+        // NOTE Segfaults, because tries to get the geometry from dummy Wlc output
+        //assert!(output.get_geometry().is_none());
+        assert!(output.set_geometry(test_geometry1.clone()).is_err());
+
+        let mut workspace = Container::new_workspace("1".to_string(),
+                                                     Size { w: 500, h: 500 });
+        assert_eq!(workspace.get_geometry(), Some(Geometry {
+            size: Size { w: 500, h: 500},
+            origin: Point { x: 0, y: 0}
+        }));
+        workspace.set_geometry(test_geometry1.clone())
+            .expect("Can't set geometry on workspace");
+        // Workspace only grabs the Size, so point will be 0 0.
+        let workspace_geometry = Geometry {
+            size: test_geometry1.size.clone(),
+            origin: Point { x: 0, y: 0}
+        };
+        assert_eq!(workspace.get_geometry(), Some(workspace_geometry.clone()));
+
+        let mut container = Container::new_container(test_geometry1.clone());
+        assert_eq!(container.get_geometry(), Some(test_geometry1.clone()));
+        container.set_geometry(test_geometry2.clone())
+            .expect("Could not set geometry on container");
+        assert_eq!(container.get_geometry(), Some(test_geometry2.clone()));
+
+        // NOTE Can't test view, because that will just segfault as well
+        //let mut view = Container::new_view(WlcView::root());
     }
 }

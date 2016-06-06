@@ -20,9 +20,14 @@ const EVENT_PASS_THROUGH: bool = false;
 
 pub extern fn output_created(output: WlcOutput) -> bool {
     trace!("output_created: {:?}: {}", output, output.get_name());
-    match tree::add_output(output) {
-        Ok(_) => true,
-        Err(_) => false
+    {
+        if let Ok(mut tree) = tree::try_lock_tree() {
+            tree.add_output(output.clone());
+            tree.switch_to_workspace(&"1");
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -51,31 +56,38 @@ pub extern fn output_render_post(output: WlcOutput) {
 pub extern fn view_created(view: WlcView) -> bool {
     trace!("view_created: {:?}: \"{}\"", view, view.get_title());
     let output = view.get_output();
-    match tree::add_view(view.clone()) {
-        Ok(_) => {},
-        Err(_) => {
-            // This causes view_destroyed to be called, might cause an issue
-            view.close();
-            return false;
-        }
+    if let Ok(mut tree) = tree::try_lock_tree() {
+        tree.add_view(view.clone());
+        drop(tree);
+        view.set_mask(output.get_mask());
+        view.bring_to_front();
+        view.focus();
+        true
+    } else {
+        false
     }
-    view.set_mask(output.get_mask());
-    view.bring_to_front();
-    view.focus();
-    return true;
 }
 
 pub extern fn view_destroyed(view: WlcView) {
     trace!("view_destroyed: {:?}", view);
-    match tree::remove_view(&view) {
-        Ok(_) => {},
-        Err(_) => {},
+    if let Ok(mut tree) = tree::try_lock_tree() {
+        tree.remove_view(&view);
+    } else {
+        warn!("Could not delete view {:?}", view);
     }
 }
 
 pub extern fn view_focus(current: WlcView, focused: bool) {
     trace!("view_focus: {:?} {}", current, focused);
     current.set_state(VIEW_ACTIVATED, focused);
+    // set the focus view in the tree
+    {
+        // If tree is already grabbed,
+        // it should have the active container all set
+        if let Ok(mut tree) = tree::try_lock_tree() {
+            tree.set_active_container(current.clone());
+        }
+    }
 }
 
 pub extern fn view_move_to_output(current: WlcView,
