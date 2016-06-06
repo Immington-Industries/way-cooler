@@ -280,13 +280,13 @@ impl IndexMut<NodeIndex> for Tree {
     }
 }
 
+#[cfg(test)]
 mod tests {
 
     use super::*;
     use layout::container::*;
     use rustwlc::*;
 
-    #[cfg(test)]
     /// Makes a very basic tree.
     /// There is only one output,
     /// Two workspaces,
