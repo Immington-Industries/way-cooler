@@ -47,13 +47,46 @@ macro_rules! lua_convertible {
         }
     }
 }
+/// Creates a struct and implements `ToJson` and `Decodeable` from
+/// rustc_serialize.
+#[macro_export]
+macro_rules! json_convertible {
+    (  $(#[$attr:meta])*
+       struct $name:ident { $($fname:ident : $ftype:ty),+  }  ) => {
 
+        $(#[$attr])*
+        pub struct $name {
+            $($fname: $ftype),+
+        }
+
+        impl ::rustc_serialize::json::ToJson for $name {
+            fn to_json(&self) -> ::rustc_serialize::json::Json {
+                let mut tree = ::std::collections::BTreeMap::new();
+                $( tree.insert(stringify!($fname).to_string(),
+                                self.$fname.to_json()); )+
+                ::rustc_serialize::json::Json::Object(tree)
+            }
+        }
+
+        impl ::rustc_serialize::Decodable for $name {
+            fn decode<D: ::rustc_serialize::Decoder>(d: &mut D) -> Result<$name, D::Error> {
+                $( let $fname = try!(d.read_struct_field(
+                    stringify!($fname), 0usize,
+                    |f| ::rustc_serialize::Decodable::decode(f))); )+
+
+                Ok($name {
+                    $( $fname: $fname ),+
+                })
+            }
+        }
+    }
+}
 /// Create a keypress using fewer keystrokes. Provides a custom panic method.
 #[macro_export]
 macro_rules! keypress {
     ($modifier:expr, $key:expr) => {
-        $crate::keys::KeyPress::from_key_names(vec![$modifier],
-                                 vec![$key])
+        $crate::keys::KeyPress::from_key_names(&[$modifier],
+                                 $key)
             .expect(concat!("Unable to create keypress from macro with ",
                             $modifier, " and ", $key))
     };
@@ -63,7 +96,7 @@ macro_rules! keypress {
 #[cfg(test)]
 macro_rules! require_rustwlc {
     () => {
-        if option_env!("DUMMY_RUSTWLC").is_some() {
+        if cfg!(test) {
             return;
         }
     }
@@ -73,11 +106,22 @@ macro_rules! require_rustwlc {
 mod tests {
     use super::super::convert::{ToTable, FromTable, LuaDecoder};
     use hlua;
+    use rustc_serialize::Decodable;
+    use rustc_serialize::json::{Decoder, ToJson};
+
     lua_convertible! {
         #[derive(Debug, Clone, PartialEq)]
         struct Point {
             x: f32,
             y: f32
+        }
+    }
+
+    json_convertible! {
+        #[derive(Debug, Clone, PartialEq)]
+        struct Rectangle {
+            height: u32,
+            width: u32
         }
     }
 
@@ -94,9 +138,17 @@ mod tests {
         let point = Point { x: 0f32, y: 0f32 };
         let lua_point = point.clone().to_table();
         let maybe_point = Point::from_table(LuaDecoder::new(lua_point));
-        assert!(maybe_point.is_ok());
         let parsed_point = maybe_point.expect("Unable to parse point!");
         assert_eq!(parsed_point, point);
+    }
+
+    #[test]
+    fn json_convertible() {
+        let rect = Rectangle { height: 1u32, width: 2u32 };
+        let json_rect = rect.to_json();
+        let maybe_rect = Rectangle::decode(&mut Decoder::new(json_rect));
+        let parsed_rect = maybe_rect.expect("Unable to parse rectangle!");
+        assert_eq!(parsed_rect, rect);
     }
 
     #[test]
@@ -105,7 +157,7 @@ mod tests {
         use super::super::keys::KeyPress;
         use std::hash::{SipHasher, Hash};
 
-        let press = KeyPress::from_key_names(vec!["Ctrl"], vec!["p"])
+        let press = KeyPress::from_key_names(&["Ctrl"], "p")
             .expect("Unable to construct regular keypress");
         let press_macro = keypress!("Ctrl", "p");
         let mut hasher = SipHasher::new();

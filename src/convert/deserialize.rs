@@ -225,3 +225,13 @@ impl<K, V> FromTable for HashMap<K, V> where K: Hash + Eq + FromTable, V: FromTa
         decoder.get_hash_map()
     }
 }
+
+use rustc_serialize::json::Json;
+
+impl FromTable for Json {
+    fn from_table(decoder: LuaDecoder) -> ConvertResult<Json> {
+        super::json::lua_to_json(decoder.val)
+            .map_err(|_| ConverterError::InvalidTableIndex(
+                "Lua value had invalid table index!".to_string()))
+    }
+}

@@ -3,7 +3,6 @@
 use std::thread;
 use std::fs::{File};
 use std::path::Path;
-use std::io::Write;
 use std::fmt::{Debug, Formatter};
 use std::fmt::Result as FmtResult;
 use std::sync::{Mutex, RwLock};
@@ -12,7 +11,8 @@ use std::sync::mpsc::{channel, Sender, Receiver};
 use hlua::{Lua, LuaError};
 
 use super::types::*;
-use super::funcs;
+use super::rust_interop;
+use super::init_path;
 
 lazy_static! {
     /// Sends requests to the Lua thread
@@ -98,15 +98,28 @@ pub fn init() {
     let mut lua = Lua::new();
     debug!("Loading Lua libraries...");
     lua.openlibs();
-    trace!("Loading way-cooler lua extensions...");
-    // We should have some good file handling, read files from /usr by default,
-    // but for now we're reading directly from the source.
-    lua.execute_from_reader::<(), File>(
-        File::open("lib/lua/init.lua")
-            .expect("Lua thread unable to find init file")
-    ).expect("Lua thread: unable to execute init file");
     trace!("Loading way-cooler libraries...");
-    funcs::register_libraries(&mut lua);
+    rust_interop::register_libraries(&mut lua);
+
+    let (use_config, maybe_init_file) = init_path::get_config();
+    if use_config {
+        match maybe_init_file {
+            Ok(init_file) => {
+                debug!("Found config file...");
+                // TODO defaults here are important
+                let _: () = lua.execute_from_reader(init_file)
+                    .expect("Unable to load config file");
+                debug!("Read config file");
+            }
+            Err(reason) => {
+                panic!("Unable to load init file: {}", reason)
+            }
+        }
+    }
+    else {
+        trace!("Skipping config search");
+    }
+
     // Only ready after loading libs
     *RUNNING.write().expect(ERR_LOCK_RUNNING) = true;
     debug!("Entering main loop...");
@@ -150,7 +163,6 @@ fn handle_message(request: LuaMessage, lua: &mut Lua) {
             thread_send(request.reply, LuaResponse::Pong);
 
             info!("Lua thread terminating!");
-            panic!("Lua thread received termination request.");
         },
 
         LuaQuery::Restart => {
@@ -217,6 +229,22 @@ fn handle_message(request: LuaMessage, lua: &mut Lua) {
             let result = func(lua);
             thread_send(request.reply, LuaResponse::Variable(Some(result)));
         },
+        LuaQuery::HandleKey(press) => {
+            trace!("Lua: handling keypress {}", &press);
+            let press_ix = press.get_lua_index_string();
+            // Access the index
+            let code = format!("__key_map['{}']()", press_ix);
+            match lua.execute::<()>(&code) {
+                Err(error) => {
+                    warn!("Error handling {}: {:?}", &press, error);
+                    thread_send(request.reply, LuaResponse::Error(error));
+                }
+                Ok(_) => {
+                    trace!("Handled keypress okay.");
+                    thread_send(request.reply, LuaResponse::Pong);
+                }
+            }
+        }
         LuaQuery::Ping => {
             thread_send(request.reply, LuaResponse::Pong);
         },

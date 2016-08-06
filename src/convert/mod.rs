@@ -3,6 +3,7 @@
 
 pub mod serialize;
 pub mod deserialize;
+pub mod json;
 
 pub use self::serialize::ToTable;
 pub use self::deserialize::

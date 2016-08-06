@@ -3,12 +3,18 @@ use rustwlc::handle::{WlcOutput, WlcView};
 use rustwlc::types::*;
 use rustwlc::input::{pointer, keyboard};
 
+use registry::{self, RegistryGetData};
+
+use rustc_serialize::json::Json;
+use std::sync::Arc;
+
+use std::thread;
 
 use compositor;
-use super::keys;
-use super::lua;
-use super::keys::KeyPress;
-use super::layout::tree;
+use super::keys::{self, KeyPress, KeyEvent};
+use super::layout::{try_lock_tree, ContainerType};
+use super::lua::{self, LuaQuery};
+use super::background;
 
 /// If the event is handled by way-cooler
 const EVENT_HANDLED: bool = true;
@@ -20,9 +26,12 @@ const EVENT_PASS_THROUGH: bool = false;
 
 pub extern fn output_created(output: WlcOutput) -> bool {
     trace!("output_created: {:?}: {}", output, output.get_name());
-    match tree::add_output(output) {
-        Ok(_) => true,
-        Err(_) => false
+    if let Ok(mut tree) = try_lock_tree() {
+        tree.add_output(output).and_then(|_|{
+            tree.switch_to_workspace(&"1")
+        }).is_ok()
+    } else {
+        false
     }
 }
 
@@ -37,45 +46,50 @@ pub extern fn output_focus(output: WlcOutput, focused: bool) {
 pub extern fn output_resolution(output: WlcOutput,
                             old_size_ptr: &Size, new_size_ptr: &Size) {
     trace!("output_resolution: {:?} from  {:?} to {:?}",
-             output, *old_size_ptr, *new_size_ptr);
-}
-/*
-pub extern fn output_render_pre(output: WlcOutput) {
-    //println!("output_render_pre");
+           output, *old_size_ptr, *new_size_ptr);
+    // Update the resolution of the output and its children
+    output.set_resolution(new_size_ptr.clone());
+    if let Ok(mut tree) = try_lock_tree() {
+        tree.layout_active_of(ContainerType::Output)
+            .expect("Could not layout active output");
+    }
 }
 
-pub extern fn output_render_post(output: WlcOutput) {
-    //println!("output_render_post");
-}
-*/
 pub extern fn view_created(view: WlcView) -> bool {
     trace!("view_created: {:?}: \"{}\"", view, view.get_title());
-    let output = view.get_output();
-    match tree::add_view(view.clone()) {
-        Ok(_) => {},
-        Err(_) => {
-            // This causes view_destroyed to be called, might cause an issue
-            view.close();
-            return false;
-        }
+    if let Ok(mut tree) = try_lock_tree() {
+        tree.add_view(view.clone()).and_then(|_| {
+            tree.set_active_view(view)
+        }).is_ok()
+    } else {
+        false
     }
-    view.set_mask(output.get_mask());
-    view.bring_to_front();
-    view.focus();
-    return true;
 }
 
 pub extern fn view_destroyed(view: WlcView) {
     trace!("view_destroyed: {:?}", view);
-    match tree::remove_view(&view) {
-        Ok(_) => {},
-        Err(_) => {},
+    if let Ok(mut tree) = try_lock_tree() {
+        tree.remove_view(view.clone()).and_then(|_| {
+            tree.layout_active_of(ContainerType::Workspace)
+        }).unwrap_or_else(|err| {
+            error!("Error in view_destroyed: {}", err);
+        });
+    } else {
+        error!("Could not delete view {:?}", view);
     }
 }
 
 pub extern fn view_focus(current: WlcView, focused: bool) {
     trace!("view_focus: {:?} {}", current, focused);
     current.set_state(VIEW_ACTIVATED, focused);
+    // set the focus view in the tree
+    // If tree is already grabbed,
+    // it should have the active container all set
+    if let Ok(mut tree) = try_lock_tree() {
+        if tree.set_active_view(current.clone()).is_err() {
+            error!("Could not layout {:?}", current);
+        }
+    }
 }
 
 pub extern fn view_move_to_output(current: WlcView,
@@ -85,7 +99,7 @@ pub extern fn view_move_to_output(current: WlcView,
 
 pub extern fn view_request_geometry(view: WlcView, geometry: &Geometry) {
     trace!("view_request_geometry: {:?} wants {:?}", view, geometry);
-    view.set_geometry(EDGE_NONE, geometry);
+    warn!("Denying view {} request for size", view.get_title());
 }
 
 pub extern fn view_request_state(view: WlcView, state: ViewState, handled: bool) {
@@ -115,17 +129,32 @@ pub extern fn keyboard_key(_view: WlcView, _time: u32, mods: &KeyboardModifiers,
         // let mut keys = keyboard::get_current_keys().into_iter()
         //      .map(|&k| Keysym::from(k)).collect();
         let sym = keyboard::get_keysym_for_key(key, &KeyMod::empty());
-        let keys = vec![sym];
-
-        let press = KeyPress::new(mods.mods, keys);
+        let press = KeyPress::new(mods.mods, sym);
         if let Some(action) = keys::get(&press) {
-            info!("[key] Found an action for {:?}", press);
-            action();
-            return EVENT_HANDLED;
+            debug!("[key] Found an action for {}", press);
+            match action {
+                KeyEvent::Command(func) => {
+                    func();
+                },
+                KeyEvent::Lua => {
+                    match lua::send(LuaQuery::HandleKey(press)) {
+                        Ok(_) => {},
+                        Err(err) => {
+                            // We may want to wait for Lua's reply from
+                            // keypresses; for example if the table is tampered
+                            // with or Lua is restarted or Lua has an error.
+                            // ATM Lua asynchronously logs this but in the future
+                            // an error popup/etc is a good idea.
+                            error!("Error sending keypress: {:?}", err);
+                        }
+                    }
+                }
+            }
+            return EVENT_HANDLED
         }
     }
 
-    return EVENT_PASS_THROUGH;
+    return EVENT_PASS_THROUGH
 }
 
 pub extern fn pointer_button(view: WlcView, _time: u32,
@@ -158,11 +187,38 @@ pub extern fn compositor_ready() {
     info!("Preparing compositor!");
     info!("Initializing Lua...");
     lua::init();
+    info!("Loading background...");
+    let maybe_color: Result<Arc<Json>, ()> = registry::get_data("background")
+        .map(RegistryGetData::resolve).and_then(|(_, data)| {
+            Ok(data)
+        }).map_err(|_| ());
+    if let Ok(color) = maybe_color {
+        match *color {
+            Json::F64(hex_color) => {
+                for output in WlcOutput::list() {
+                    let color = background::Color::from_u32(hex_color as u32);
+                    // different thread for each output.
+                    thread::spawn(move || {background::generate_solid_background(color, output.clone());});
+                }
+            }
+            _ => {
+                error!("Non-solid color backgrounds not yet supported, {:?}", color);
+            }
+        }
+    } else {
+        warn!("Couldn't read background value");
+    }
 }
 
 pub extern fn compositor_terminating() {
     info!("Compositor terminating!");
     lua::send(lua::LuaQuery::Terminate).ok();
+    if let Ok(mut tree) = try_lock_tree() {
+        if tree.destroy_tree().is_err() {
+            error!("Could not destroy tree");
+        }
+    }
+
 }
 
 

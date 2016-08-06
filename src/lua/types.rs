@@ -8,6 +8,7 @@ use hlua;
 use hlua::Lua;
 use hlua::any::AnyLuaValue;
 
+use keys::KeyPress;
 
 /// Methods that the Lua thread can execute.
 pub type LuaFunc = fn(&mut Lua) -> AnyLuaValue;
@@ -28,22 +29,27 @@ pub enum LuaQuery {
     ExecFile(String),
     /// Execute some Rust using the Lua context.
     ExecRust(LuaFunc),
+
+    /// Handle the key press for the given key.
+    HandleKey(KeyPress),
 }
 
 impl Debug for LuaQuery {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        match self {
-            &LuaQuery::Ping => write!(f, "LuaQuery::Ping"),
-            &LuaQuery::Terminate => write!(f, "LuaQuery::Terminate"),
-            &LuaQuery::Restart => write!(f, "LuaQuery::Restart"),
-            &LuaQuery::Execute(ref val) =>
+        match *self {
+            LuaQuery::Ping => write!(f, "LuaQuery::Ping"),
+            LuaQuery::Terminate => write!(f, "LuaQuery::Terminate"),
+            LuaQuery::Restart => write!(f, "LuaQuery::Restart"),
+            LuaQuery::Execute(ref val) =>
                 write!(f, "LuaQuery::Execute({:?})", val),
-            &LuaQuery::ExecFile(ref val) =>
+            LuaQuery::ExecFile(ref val) =>
                 write!(f, "LuaQuery::ExecFile({:?})", val),
             // This is why there's no #[derive(Debug)],
             // and why we have lua/types.rs
-            &LuaQuery::ExecRust(_) =>
-                write!(f, "LuaQuery::ExecRust()")
+            LuaQuery::ExecRust(_) =>
+                write!(f, "LuaQuery::ExecRust()"),
+            LuaQuery::HandleKey(ref press) =>
+                write!(f, "LuaQuery::HandleKey({:?})", press),
         }
     }
 }
@@ -63,7 +69,8 @@ impl PartialEq for LuaQuery {
             (&LuaQuery::ExecFile(ref s1), &LuaQuery::ExecFile(ref s2)) =>
                 s1 == s2,
             (&LuaQuery::ExecRust(_), &LuaQuery::ExecRust(_)) => true,
-
+            (&LuaQuery::HandleKey(ref p1), &LuaQuery::HandleKey(ref p2)) =>
+                p1 == p2,
             _ => false
         }
     }

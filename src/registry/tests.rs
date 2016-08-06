@@ -1,14 +1,100 @@
 //! Tests for the registry
 
-use std::sync::mpsc;
-use std::thread;
+use std::sync::Arc;
+use std::collections::HashMap;
 
-use super::*;
-use super::super::convert::{ToTable, FromTable};
+use rustc_serialize::json::{Json, ToJson};
 
-use hlua;
+use registry;
+use registry::{RegMap, RegistryField, GetFn, SetFn,
+               AccessFlags, FieldType};
 
-lua_convertible! {
+/// Gets the initial HashMap used by the registry
+pub fn registry_map() -> RegMap {
+    let mut map = HashMap::new();
+
+    let values: Vec<(&str, AccessFlags, Json)> = vec![
+        ("bool",  AccessFlags::all(), BOOL.to_json()),
+        ("u64",   AccessFlags::all(), U64.to_json()),
+        ("i64",   AccessFlags::all(), I64.to_json()),
+        ("f64",   AccessFlags::all(), F64.to_json()),
+        ("text",  AccessFlags::all(), TEXT.to_json()),
+        ("point", AccessFlags::all(), POINT.to_json()),
+        ("null",  AccessFlags::all(), Json::Null),
+        ("u64s",  AccessFlags::all(), Json::Array(u64s())),
+
+        ("readonly",  AccessFlags::READ(),  READONLY.to_json()),
+        ("writeonly", AccessFlags::WRITE(), WRITEONLY.to_json()),
+        ("noperms",   AccessFlags::empty(), NO_PERMS.to_json())
+    ];
+
+    for (name, flags, json) in values.into_iter() {
+        assert!(map.insert(name.to_string(),
+                           RegistryField::Object {
+                               flags: flags,
+                               data: Arc::new(json)
+                           }).is_none(), "Duplicate element inserted!");
+    }
+
+    let props: Vec<(&str, Option<GetFn>, Option<SetFn>)> = vec![
+        ("prop", Some(Arc::new(get_prop)),
+         Some(Arc::new(set_prop))),
+        ("get_prop", Some(Arc::new(get_prop)), None),
+        ("set_prop", None, Some(Arc::new(set_prop))),
+
+        ("get_panic_prop", Some(Arc::new(get_panic_prop)), None),
+        ("set_panic_prop", None, Some(Arc::new(set_panic_prop))),
+    ];
+
+    for (name, get, set) in props.into_iter() {
+        assert!(map.insert(name.to_string(),
+                           RegistryField::Property {
+                               get: get, set: set
+                           }).is_none(), "Duplicate element inserted!");
+    }
+    map
+}
+
+// Constants for use with registry-accessing tests
+
+pub const BOOL: bool = true;
+pub const U64: u64 = 42;
+pub const I64: i64 = -1;
+pub const F64: f64 = 21.5;
+
+pub const TEXT: &'static str = "Hello way-cooler";
+pub const POINT: Point = Point { x: 12, y: 12 };
+
+pub const READONLY: &'static str = "read only text";
+pub const WRITEONLY: &'static str = "write only text";
+pub const NO_PERMS: &'static str = "<look ma no perms>";
+
+pub const PROP_GET_RESULT: &'static str = "get property";
+
+pub fn get_prop() -> Json {
+    PROP_GET_RESULT.to_json()
+}
+
+pub fn get_panic_prop() -> Json {
+    panic!("get_panic_prop panic")
+}
+
+pub fn set_prop(_json: Json) {
+    println!("set_prop being called!");
+}
+
+pub fn set_panic_prop(_json: Json) {
+    panic!("set_panic_prop panic")
+}
+
+
+/// [0, 1, 2]
+pub fn u64s() -> Vec<Json> {
+    vec![Json::U64(0), Json::U64(1), Json::U64(2)]
+}
+
+json_convertible! {
+    /// Has an x and y field
     #[derive(Debug, Clone, Eq, PartialEq)]
     struct Point {
         x: i32,
@@ -16,99 +102,116 @@ lua_convertible! {
     }
 }
 
-const ERR: &'static str = "Key which was added no longer exists!";
+unsafe impl Sync for Point {}
 
 #[test]
 fn add_keys() {
-    let num = 1i32;
-    let double = -392f64;
-    let string = "Hello world".to_string();
-    let numbers = vec![1, 2, 3, 4, 5];
-    let point = Point { x: -11, y: 12 };
-
-    set(String::from("test_num"), LUA_READ, num);
-    set(String::from("test_double"), LUA_READ, double);
-    set(String::from("test_string"), LUA_READ, string.clone());
-    set(String::from("test_numbers"), LUA_READ, numbers.clone());
-    set(String::from("test_point"), LUA_READ, point.clone());
-
-    assert!(contains_key(&String::from("test_num")));
-    assert!(contains_key(&String::from("test_double")));
-    assert!(contains_key(&String::from("test_string")));
-    assert!(contains_key(&String::from("test_numbers")));
-    assert!(contains_key(&String::from("test_point")));
-
-    assert_eq!(get::<_, i32>(&String::from("test_num")).expect(ERR).1, num);
-    assert_eq!(get::<_, f64>(&String::from("test_double")).expect(ERR).1, double);
-    assert_eq!(get::<_,String>(&String::from("test_string")).expect(ERR).1, string);
-    assert_eq!(get::<_, Vec<i32>>(&String::from("test_numbers")).expect(ERR).1,
-               numbers);
-    assert_eq!(get::<_, Point>(&String::from("test_point")).expect(ERR).1, point);
-
 }
 
 #[test]
-fn lua_perms() {
-    set("perm_none".to_string(), LUA_PRIVATE, 0);
-    set("perm_read".to_string(), LUA_READ, 1);
-    set("perm_write".to_string(), LUA_WRITE, 2);
-
-    assert_eq!(get::<_, i32>(&"perm_none".to_string()).expect(ERR).0, LUA_PRIVATE);
-    assert_eq!(get::<_, i32>(&"perm_read".to_string()).expect(ERR).0, LUA_READ);
-    assert_eq!(get::<_, i32>(&"perm_write".to_string()).expect(ERR).0, LUA_WRITE);
+fn contains_keys() {
+    let keys = [
+        "bool", "u64", "i64", "f64", "null", "text", "point",
+        "u64s", "readonly", "writeonly", "prop", "noperms",
+        "get_prop", "set_prop", "get_panic_prop", "set_panic_prop",
+    ];
+    for key in keys.into_iter() {
+        assert!(registry::key_info(key).is_some(),
+                "Could not find key {}", key);
+    }
 }
 
 #[test]
-fn multithreaded() {
-    use std::time::Duration;
-    let (tx, rx) = mpsc::channel();
-    thread::sleep(Duration::from_millis(240));
-    let num = 1i32;
-    let double = -392f64;
-    let string = "Hello world".to_string();
-    let numbers = vec![1, 2, 3, 4, 5];
-    let point = Point { x: -11, y: 12 };
-
-    let tx1 = tx.clone();
-    thread::spawn(move || {
-        read_thread(String::from("test_num"), num, tx1);
-    });
-    let tx2 = tx.clone();
-    thread::spawn(move || {
-        read_thread(String::from("test_double"), double, tx2);
-    });
-    let tx3 = tx.clone();
-    thread::spawn(move || {
-        read_thread(String::from("test_string"), string, tx3);
-    });
-    let tx4 = tx.clone();
-    thread::spawn(move || {
-        read_thread(String::from("test_numbers"), numbers, tx4);
-    });
-    let tx5 = tx.clone();
-    thread::spawn(move || {
-        read_thread(String::from("test_point"), point, tx5);
-    });
-
-    let mut result = true;
-
-    for _ in 0..5 {
-        result = result && rx.recv().expect("Unable to connect to read thread");
+fn key_info() {
+    let keys = [
+        ("bool", FieldType::Object, AccessFlags::all()),
+        ("u64",  FieldType::Object, AccessFlags::all()),
+        ("readonly", FieldType::Object, AccessFlags::READ()),
+        ("writeonly", FieldType::Object, AccessFlags::WRITE()),
+        ("prop", FieldType::Property, AccessFlags::all()),
+        ("noperms", FieldType::Object, AccessFlags::empty()),
+        ("get_prop", FieldType::Property, AccessFlags::READ()),
+        ("set_prop", FieldType::Property, AccessFlags::WRITE()),
+    ];
+    for &(key, type_, flags) in keys.into_iter() {
+        assert!(registry::key_info(key) == Some((type_, flags)),
+                "Invalid flags for {}", key);
     }
-    assert!(result);
 }
 
-fn read_thread<T>(name: String, in_val: T, sender: mpsc::Sender<bool>)
-where T: ::std::fmt::Debug + FromTable + PartialEq {
-    for _ in 1 .. 50 {
-        if let Ok(acc_val) = get::<_, T>(&name) {
-            let (acc, val) = acc_val;
-            assert!(acc.contains(LUA_READ));
-            assert_eq!(val, in_val);
-        }
-        else {
-            sender.send(false).expect("Unable to reply to test thread");
-        }
+#[test]
+fn objects_and_keys_equal() {
+    let values = vec![
+        ("bool",  AccessFlags::all(), BOOL.to_json()),
+        ("u64",   AccessFlags::all(), U64.to_json()),
+        ("i64",   AccessFlags::all(), I64.to_json()),
+        ("f64",   AccessFlags::all(), F64.to_json()),
+        ("text",  AccessFlags::all(), TEXT.to_json()),
+        ("point", AccessFlags::all(), POINT.to_json()),
+        ("null",  AccessFlags::all(), Json::Null),
+        ("u64s",  AccessFlags::all(), Json::Array(u64s())),
+
+        ("readonly",  AccessFlags::READ(),  READONLY.to_json()),
+        ("writeonly", AccessFlags::WRITE(), WRITEONLY.to_json()),
+        ("noperms",   AccessFlags::empty(), NO_PERMS.to_json())
+    ];
+
+    for (name, flags, json) in values.into_iter() {
+        let (found_flags, found) = registry::get_data(name)
+            .expect(&format!("Unable to get key {}", name))
+            .resolve();
+        assert_eq!(found_flags, flags);
+        assert_eq!(*found, json);
     }
-    sender.send(true).expect("Unable to reply to test thread");
+}
+
+#[test]
+fn key_perms() {
+    let perms = vec![
+        ("bool",      AccessFlags::all()),
+        ("readonly",  AccessFlags::READ()),
+        ("writeonly", AccessFlags::WRITE()),
+        ("prop",      AccessFlags::all()),
+        ("get_prop", AccessFlags::READ()),
+        //("set_prop", AccessFlags::WRITE())
+    ];
+
+    for (name, flags) in perms.into_iter() {
+        let found_data = registry::get_data(name)
+            .expect(&format!("Could not get data for {}", name));
+
+        let (found_flags, _) = found_data.resolve();
+        println!("Testing flags for {}", name);
+        assert_eq!(found_flags, flags);
+    }
+}
+
+#[test]
+fn property_get() {
+    let prop_read = registry::get_data("get_prop")
+        .expect("Couldn't get prop_read");
+
+    assert_eq!(*prop_read.resolve().1, PROP_GET_RESULT.to_json());
+}
+
+#[test]
+#[should_panic(expected="get_panic_prop panic")]
+fn panicking_property_get() {
+    let prop_read = registry::get_data("get_panic_prop")
+        .expect("Couldn't get prop_read");
+
+    assert_eq!(*prop_read.resolve().1, PROP_GET_RESULT.to_json());
+}
+
+#[test]
+fn property_set() {
+    registry::set_json("set_prop".to_string(), Json::Null)
+            .expect("Unable to set data").call(Json::Null);
+}
+
+#[test]
+#[should_panic(expected="set_panic_prop panic")]
+fn panicking_property_set() {
+    registry::set_json("set_panic_prop".to_string(), Json::Null)
+            .expect("Unable to set data").call(Json::Null);
 }

@@ -1,17 +1,41 @@
 language: rust
+sudo: true
 rust:
   - stable
   - beta
   - nightly
+# necessary for `travis-cargo coveralls --no-sudo`
+addons:
+  apt:
+    packages:
+      - libcurl4-openssl-dev
+      - libelf-dev
+      - libdw-dev
+      - binutils-dev
+      - libwayland-client0
 matrix:
   allow_failures:
     - rust: nightly
 notifications:
-  slack: way-cooler:W2vOSvJvgxGi7EiGkZCtvlB6
+  slack:
+    rooms:
+      - way-cooler:W2vOSvJvgxGi7EiGkZCtvlB6#way-cooler
+    on_success: :change
+    on_failure: :change
   email: false
-after_failure:
-  - ls -R
+# load travis-cargo
+before_script:
+  - |
+      pip install 'travis-cargo<0.2' --user &&
+      export PATH=$HOME/.local/bin:$PATH
 script:
-  - sed 's/rustwlc = .*/rustwlc = { git = "https:\/\/github.com\/SnirkImmington\/dummy-rustwlc.git" }/g' Cargo.toml -i
-  - cargo build --verbose
   - cargo test --verbose
+
+after_success:
+  # upload the documentation from the build with stable (automatically only actually
+  # runs on the master branch, not individual PRs)
+  - travis-cargo --only stable doc-upload
+  # measure code coverage and upload to coveralls.io (the verify
+  # argument mitigates kcov crashes due to malformed debuginfo, at the
+  # cost of some speed <https://github.com/huonw/travis-cargo/issues/12>)
+  - travis-cargo coveralls --no-sudo --verify

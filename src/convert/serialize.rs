@@ -76,3 +76,11 @@ impl ToTable for () {
         LuaNil
     }
 }
+
+use rustc_serialize::json::Json;
+
+impl ToTable for Json {
+    fn to_table(self) -> AnyLuaValue {
+        super::json::json_to_lua(self)
+    }
+}
