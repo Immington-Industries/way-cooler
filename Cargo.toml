@@ -15,7 +15,7 @@ log = "0.3"
 env_logger = "0.3"
 hlua = "0.1"
 bitflags = "0.6"
-petgraph = "0.2"
+petgraph = { version = "0.3.1" }
 rustc-serialize = "0.3"
 json_macro = "0.1"
 nix = "0.6"
