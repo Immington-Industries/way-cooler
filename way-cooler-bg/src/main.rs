@@ -77,17 +77,17 @@ fn main() {
     let mut background_surface = compositor.create_surface();
 
     // We need to hold on to this buffer, this holds the background image!
+    let shell = env.shell.as_ref().map(|o| &o.0).unwrap();
+    let shell_surface = shell.get_shell_surface(&background_surface);
+    shell_surface.set_class("Background".into());
+    // TODO Actually give it the path or something idk
+    shell_surface.set_title(input.clone());
     let _background_buffer = if let Ok(color) = input.parse::<u32>() {
         let color = Color::from_u32(color);
         generate_solid_background(color, &mut background_surface, &env)
     } else {
         generate_image_background(input.as_str(), &mut background_surface, &env)
     }.expect("could not generate image");
-    let shell = env.shell.as_ref().map(|o| &o.0).unwrap();
-    let shell_surface = shell.get_shell_surface(&background_surface);
-    shell_surface.set_class("Background".into());
-    // TODO Actually give it the path or something idk
-    shell_surface.set_title(input.clone());
 
     background_surface.commit();
     background_surface.set_buffer_scale(1);

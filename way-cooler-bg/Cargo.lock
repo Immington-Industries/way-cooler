@@ -1,5 +1,5 @@
 [root]
-name = "way-cooler-background"
+name = "way-cooler-bg"
 version = "0.1.0"
 dependencies = [
  "byteorder 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
