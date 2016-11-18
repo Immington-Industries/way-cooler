@@ -1,7 +1,7 @@
 # Way Cooler
 
 [![Gitter](https://badges.gitter.im/Immington-Industries/way-cooler.svg)](https://gitter.im/Immington-Industries/way-cooler?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
-[![Crates.io](https://img.shields.io/badge/crates.io-v0.3.2-orange.svg)](https://crates.io/crate/way-cooler)
+[![Crates.io](https://img.shields.io/crates/v/way-cooler.svg)](https://crates.io/crate/way-cooler)
 [![Build Status](https://travis-ci.org/Immington-Industries/way-cooler.svg?branch=master)](https://travis-ci.org/Immington-Industries/way-cooler)
 [![Coverage Status](https://coveralls.io/repos/github/Immington-Industries/way-cooler/badge.svg)](https://coveralls.io/github/Immington-Industries/way-cooler)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Immington-Industries/way-cooler/)

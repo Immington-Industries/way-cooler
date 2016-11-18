@@ -11,12 +11,10 @@ VERSION_REGEX = '(\\d+\\.\\d+\\.\\d+)'
 BRANCH_REGEX = '$release*' + VERSION_REGEX + '^'
 # If we grab the first 'version=' line in the Cargo files we'll be fine
 CARGO_VERSION_LINE = '$version = "' + VERSION_REGEX + '"^'
-README_CRATES_TAG = "/badge/crates\\.io/-v" + VERSION_REGEX
 
 FILE_REGEX_MAP = {
     "Cargo.toml": CARGO_VERSION_LINE,
     "Cargo.lock": CARGO_VERSION_LINE,
-    "README.md": README_CRATES_TAG
 }
 
 DOCOPT_USAGE = """way-cooler CI integration.
@@ -47,6 +45,8 @@ def check_file_version(file_name, regex, expected):
             else:
                 print('\t' + file_name + ": expected " + expected + ", got " + match)
                 return False
+        print('\t' + file_name + ": did not find any version match!")
+        return False
 
 def check_release_branch(version):
     all_clear = True
