@@ -112,6 +112,9 @@ impl LayoutTree {
                 return Ok(())
             }
             let new_geo = calculate_resize(geo, reversed_edge, pointer, action.grab);
+            if new_geo.size.w <= MIN_SIZE.w || new_geo.size.h <= MIN_SIZE.h {
+                return Ok(())
+            }
             resizing_ops.push((sibling, (reversed_edge, new_geo)));
         }
         action.grab = pointer;
