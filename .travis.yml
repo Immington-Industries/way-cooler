@@ -41,13 +41,17 @@ install:
 
 script:
   # check integrity of Lua files in /lib/lua/
-  - for file in $( find lib/lua -type f -name "*.lua" ); do echo Checking $file; luac -p $file; done
+  - for file in $( find way-cooler/lib/lua -type f -name "*.lua" ); do echo Checking $file; luac -p $file; done
   # check integrity of init file
-  - luac -p config/init.lua
-  # Make sure no-test builds
-  - cargo check --verbose
-  # run tests
-  - cargo test --verbose
+  - luac -p way-cooler/config/init.lua
+  # Make sure no-test builds (way-cooler)
+  - (cd way-cooler; cargo check --verbose)
+  # Make sure no-test builds (way-cooler-bg)
+  - (cd way-cooler-bg; cargo check --verbose)
+  # run tests (way-cooler)
+  - (cd way-cooler; cargo test --verbose)
+  # run tests (way-cooler-bg)
+  - (cd way-cooler-bg; cargo test --verbose)
   # run tag checks
   - python $TRAVIS_BUILD_DIR/ci.py travis-check
 
