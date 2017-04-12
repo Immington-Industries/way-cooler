@@ -30,13 +30,19 @@ impl LayoutTree {
                 }
             }
             ContainerType::Output => {
-                let geometry = self.tree[node_ix].get_geometry()
-                    .expect("Output had no geometry");
+                let (geometry, actual_geometry) = {
+                    let container = &self.tree[node_ix];
+                    let geometry = container.get_geometry()
+                        .expect("Output had no geometry");
+                    let actual_geometry = container.get_actual_geometry()
+                        .expect("Output had no actual geometry");
+                    (geometry, actual_geometry)
+                };
                 match self.tree[node_ix] {
                     Container::Output { ref mut background, .. } => {
                         // update the background size
                         if let Some(background) = *background {
-                            background.set_geometry(ResizeEdge::empty(), geometry)
+                            background.set_geometry(ResizeEdge::empty(), actual_geometry)
                         }
                     }
                     _ => unreachable!()
