@@ -107,7 +107,19 @@ impl LayoutTree {
             ContainerType::Workspace => {
                 self.tree[node_ix].set_geometry(ResizeEdge::empty(), geometry);
                 for child_ix in self.tree.grounded_children(node_ix) {
-                    self.layout_helper(child_ix, geometry, fullscreen_apps);
+                    match self.tree[node_ix] {
+                        Container::Container { layout, geometry: geometry_c, ..} => {
+                            match layout {
+                                Layout::Scroll => {
+                                    let mut constraint_geometry = geometry_c.clone();
+                                    constraint_geometry.size.h = geometry.size.h;
+                                    self.layout_helper(child_ix, constraint_geometry, fullscreen_apps)
+                                }
+                                _ => self.layout_helper(child_ix, geometry, fullscreen_apps)
+                            }
+                        }
+                        _ => self.layout_helper(child_ix, geometry, fullscreen_apps)
+                    }
                 }
                 // place floating children above everything else
                 let root_ix = self.tree.children_of(node_ix)[0];
@@ -130,6 +142,61 @@ impl LayoutTree {
                     _ => unreachable!()
                 };
                 match layout {
+                    Layout::Scroll => {
+                        let children = self.tree.grounded_children(node_ix);
+                        let children_len = children.len();
+                        let total_width = LayoutTree::calculate_scale(children.iter().map(|child_ix| {
+                            let c_geometry = self.tree[*child_ix].get_geometry()
+                                .expect("Child had no geometry");
+                            c_geometry.size.w as f32
+                        }).collect(), geometry.size.w as f32);
+
+                        if total_width > 0.1 {
+
+                            // Updated geometry with enough width to hold all children
+                            let mut new_geometry = geometry.clone();
+                            new_geometry.size.w = total_width as u32;
+                            self.tree[node_ix].set_geometry(ResizeEdge::empty(), new_geometry);
+
+                            let new_size_f = |child_size: Size, sub_geometry: Geometry| {
+                                let width = if child_size.w > 0 {
+                                    child_size.w as f32
+                                } else {
+                                    // If the width would become zero, just make it the average size of the container.
+                                    // e.g, if container was width 500 w/ 2 children, this view would have a width of 250
+                                    geometry.size.w as f32 / children_len.checked_sub(1).unwrap_or(1) as f32
+                                };
+                                Size {
+                                    w: width as u32,
+                                    h: sub_geometry.size.h
+                                }
+                            };
+                            let remaining_size_f = |sub_geometry: Geometry,
+                                                    cur_geometry: Geometry| {
+                                let remaining_width =
+                                    cur_geometry.origin.x + cur_geometry.size.w as i32 -
+                                    sub_geometry.origin.x;
+                                Size {
+                                    w: remaining_width as u32,
+                                    h: sub_geometry.size.h
+                                }
+                            };
+                            let new_point_f = |new_size: Size, sub_geometry: Geometry| {
+                                Point {
+                                    x: sub_geometry.origin.x + new_size.w as i32,
+                                    y: sub_geometry.origin.y
+                                }
+                            };
+                            self.generic_tile(node_ix, new_geometry, children.as_slice(),
+                                              new_size_f, remaining_size_f, new_point_f,
+                                              fullscreen_apps);
+                            self.add_borders(node_ix)
+                                .expect("Couldn't add border gaps to horizontal container");
+                            self.add_gaps(node_ix)
+                                .expect("Couldn't add gaps to horizontal container");
+                            self.draw_borders_rec(children);
+                        }
+                    }
                     Layout::Horizontal => {
                         let children = self.tree.grounded_children(node_ix);
                         let children_len = children.len();
@@ -240,6 +307,74 @@ impl LayoutTree {
             }
         }
         self.validate();
+    }
+
+    // If a View, inside a container with Scroll layout, is outside the display
+    // move the container so that the view is fully visible.
+    pub fn scroll_into_view(&mut self, node_ix: NodeIndex) {
+        let parent_ix = self.tree.parent_of(node_ix)
+            .expect("Node had no parent");
+        let geometry_p;
+        let layout_p;
+        { // get the geometry and layout of parent_ix
+            let parent_c = &self.tree[parent_ix];
+            geometry_p = parent_c.get_geometry()
+                .expect("Had no geometry");
+            match *parent_c {
+                Container::Container { layout, .. } => {
+                    layout_p = layout;
+                }
+                // Do nothing if parent doesn't have a layout
+                _ => return
+            }
+
+        }
+        match layout_p {
+            Layout::Scroll => {
+                // How much of the prev/next container should be visible
+                let overlap = {
+                    let children = self.tree.grounded_children(parent_ix);
+                    if children.len() > 0 && (children[0] == node_ix
+                         || children[children.len() - 1] == node_ix) {
+                            0 /* Don't show the background (showing the background
+                                 incidentially seem to cause some rendering bugs) */
+                        } else {
+                            25
+                        }
+                };
+                let resolution;
+                let geometry_c;
+                {
+                    let node_c =  &self.tree[node_ix];
+                    geometry_c = node_c.get_geometry()
+                        .expect("Had no geometry");
+                    let output_ix = self.tree.ancestor_of_type(node_ix, ContainerType::Output)
+                                         .expect("Node had no output parent");
+                    resolution = match self.tree[output_ix] {
+                        Container::Output { handle, .. } => {
+                            handle.get_resolution().expect("Output had no resolution")
+                        },
+                        _ => return
+                    };
+                }
+                let x = geometry_c.origin.x;
+                let mut new_geometry = geometry_p.clone();
+                if x < 0 {
+                    new_geometry.origin.x = geometry_p.origin.x - x + overlap;
+                    let mut fullscreen_apps = Vec::new();
+                    self.layout_helper(parent_ix, new_geometry, &mut fullscreen_apps);
+                // x >= 0 so as u32 is safe
+                } else if x as u32 + geometry_c.size.w > resolution.w {
+                    new_geometry.origin.x = geometry_p.origin.x - x - overlap
+                        + (resolution.w as i32 - geometry_c.size.w as i32);
+                    let mut fullscreen_apps = Vec::new();
+                    self.layout_helper(parent_ix, new_geometry, &mut fullscreen_apps);
+                }
+
+            }
+            // Try to scroll the parent into view
+            _ => { &self.scroll_into_view(parent_ix); }
+        }
     }
 
     /// Attempts to set the node behind the id to be floating.
@@ -583,6 +718,17 @@ impl LayoutTree {
                 match self.tree[parent_ix] {
                     Container::Container { ref layout, .. } => {
                         match *layout {
+                            Layout::Scroll => {
+                                let size = self.tree[node_ix].get_geometry()
+                                    .expect("View had no geometry").size;
+                                new_geometry = Geometry {
+                                    origin: parent_geometry.origin.clone(),
+                                    size: Size {
+                                        w: size.w,
+                                        h: parent_geometry.size.h
+                                    }
+                                };
+                            }
                             Layout::Horizontal => {
                                 new_geometry = Geometry {
                                     origin: parent_geometry.origin.clone(),
@@ -684,7 +830,7 @@ impl LayoutTree {
                     geometry.origin.y += (gap / 2) as i32;
                     if index == children.len() - 1 {
                         match layout {
-                            Layout::Horizontal => {
+                            Layout::Horizontal | Layout::Scroll => {
                                 geometry.size.w = geometry.size.w.saturating_sub(gap / 2)
                             },
                             Layout::Vertical => {
@@ -693,7 +839,7 @@ impl LayoutTree {
                         }
                     }
                     match layout {
-                        Layout::Horizontal => {
+                        Layout::Horizontal | Layout::Scroll => {
                             geometry.size.w = geometry.size.w.saturating_sub(gap / 2);
                             geometry.size.h = geometry.size.h.saturating_sub(gap);
                         },

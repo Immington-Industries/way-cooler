@@ -73,7 +73,8 @@ impl ContainerType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Layout {
     Horizontal,
-    Vertical
+    Vertical,
+    Scroll
 }
 
 /// Represents an item in the container tree.
@@ -168,7 +169,7 @@ impl Container {
     /// Creates a new container
     pub fn new_container(geometry: Geometry) -> Container {
         Container::Container {
-            layout: Layout::Horizontal,
+            layout: Layout::Scroll,
             floating: false,
             fullscreen: false,
             geometry: geometry,

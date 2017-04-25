@@ -218,6 +218,7 @@ impl LayoutTree {
         self.tree[node_ix].active_border_color()
             .expect("Could set active border color");
         self.active_container = Some(node_ix);
+        self.scroll_into_view(node_ix);
         let c_type; let id;
         {
             let container = &self.tree[node_ix];

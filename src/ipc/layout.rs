@@ -54,6 +54,7 @@ dbus_interface! {
         // TODO Tree commands need to have these defined on the Tree,
         // for now this is _ok_, but we are swallowing an potential Tree lock error here.
         match axis {
+            Layout::Scroll => layout_cmd::split_horizontal(),
             Layout::Horizontal => layout_cmd::split_horizontal(),
             Layout::Vertical => layout_cmd::split_vertical()
         }

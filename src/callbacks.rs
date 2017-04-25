@@ -138,7 +138,7 @@ pub extern fn view_created(view: WlcView) -> bool {
     }
     if let Ok(mut tree) = lock_tree() {
         let result = tree.add_view(view).and_then(|_| {
-            view.set_state(VIEW_MAXIMIZED, true);
+            // view.set_state(VIEW_MAXIMIZED, true);
             match tree.set_active_view(view) {
                 // If blocked by fullscreen, we don't focus on purpose
                 Err(TreeError::Focus(FocusError::BlockedByFullscreen(_, _))) => Ok(()),

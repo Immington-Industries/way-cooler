@@ -85,6 +85,8 @@ impl LayoutTree {
         match self.tree[parent_ix] {
             Container::Container { layout, .. } => {
                 match (layout, direction) {
+                    (Layout::Scroll, Direction::Left) |
+                    (Layout::Scroll, Direction::Right) |
                     (Layout::Horizontal, Direction::Left) |
                     (Layout::Horizontal, Direction::Right) |
                     (Layout::Vertical, Direction::Up) |
