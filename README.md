@@ -73,9 +73,19 @@ Follow the development of these features in our [issues section] or checkout our
 
 @miltador was kind enough to provide a [NixOS package](https://github.com/NixOS/nixpkgs/blob/master/pkgs/applications/window-managers/way-cooler/default.nix).
 
+## openSUSE
+
+@jubalh was kind enough to provide an [openSUSE package](https://build.opensuse.org/package/show/X11:windowmanagers/way-cooler).
+Install with:
+
+```
+zypper ar -f obs://X11:windowmanagers windowmanagers
+zypper in way-cooler
+```
+
 ## Installation Script
 
-For users who are not on Arch or NixOS, we have provided a simple install script that you can run in the terminal in order to install Way Cooler.
+For users who are not using the above mentioned Linux distributions, we have provided a simple install script that you can run in the terminal in order to install Way Cooler.
 
 Please go to the [download page on our site](http://way-cooler.org/download) in order to download Way Cooler.
 
@@ -118,6 +128,7 @@ Way Cooler was started by @Timidger and @SnirkImmington, but these fine people h
   + fixed background program to have solid colors be variable size at initilization
   + [added modes to the background program (fill, fit, stretch, title)](https://github.com/way-cooler/way-cooler-bg/pull/6#pullrequestreview-32859779)
 - @hedning fixed an unsigned underflow in the tiling code
+- @jubalh created the openSUSE package
 
 And of course, thanks to the Rust community and the developers of [wlc].
 
