@@ -386,15 +386,16 @@ impl Mode for Default {
         EVENT_PASS_THROUGH
     }
 
-    fn on_pointer_motion(&mut self, view: WlcView, _time: u32, point: Point) -> bool {
+    fn on_pointer_motion(&mut self, view: WlcView, _time: u32, x: f64, y: f64) -> bool {
         let mut result = EVENT_PASS_THROUGH;
+        let point = Point::new(x as i32, y as i32);
         let mut maybe_action = None;
         {
             if let Ok(action_lock) = try_lock_action() {
                 maybe_action = action_lock.clone();
             }
         }
-        awesome::mousegrabber_handle(point.x, point.y, None)
+        awesome::mousegrabber_handle(x as i32, y as i32, None)
             .unwrap_or_else(|err|
                             warn!("handling keygrabber returned error: {:#?}", err));
         match maybe_action {
@@ -426,7 +427,7 @@ impl Mode for Default {
                 }
             }
         }
-        pointer::set_position(point);
+        pointer::set_position_v2(x, y);
         result
     }
 

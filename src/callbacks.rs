@@ -131,9 +131,9 @@ pub extern fn pointer_scroll(view: WlcView, time: u32,
     mode.on_pointer_scroll(view, time, *mods_ptr, axis, heights)
 }
 
-pub extern fn pointer_motion(view: WlcView, time: u32, point: &Point) -> bool {
+pub extern fn pointer_motion(view: WlcView, time: u32, x: f64, y: f64) -> bool {
     let mut mode = read_current_mode().clone();
-    mode.on_pointer_motion(view, time, *point)
+    mode.on_pointer_motion(view, time, x, y)
 }
 
 pub extern fn compositor_ready() {
@@ -186,7 +186,7 @@ pub fn init() {
     callback::keyboard_key(keyboard_key);
     callback::pointer_button(pointer_button);
     callback::pointer_scroll(pointer_scroll);
-    callback::pointer_motion(pointer_motion);
+    callback::pointer_motion_v2(pointer_motion);
     callback::compositor_ready(compositor_ready);
     callback::compositor_terminate(compositor_terminating);
     callback::view_render_pre(view_pre_render);

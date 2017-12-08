@@ -3,7 +3,7 @@
 use std::fmt::{self, Display, Formatter};
 use std::default::Default;
 use rlua::{self, Table, Lua, UserData, ToLua};
-use rustwlc::{Point, input};
+use rustwlc::input;
 
 const INDEX_MISS_FUNCTION: &'static str = "__index_miss_function";
 const NEWINDEX_MISS_FUNCTION: &'static str = "__newindex_miss_function";
@@ -67,15 +67,15 @@ fn coords<'lua>(lua: &'lua Lua, (coords, _ignore_enter): (rlua::Value<'lua>, rlu
             let (x, y) = (coords.get("x")?, coords.get("y")?);
             // TODO The ignore_enter is supposed to not send a send event to the client
             // That's not possible, at least until wlroots is complete.
-            input::pointer::set_position(Point { x, y });
+            input::pointer::set_position_v2(x, y);
             Ok(coords)
         },
         _ => {
             // get the coords
             let coords = lua.create_table();
-            let Point { x, y } = input::pointer::get_position();
-            coords.set("x", x)?;
-            coords.set("y", y)?;
+            let (x, y) = input::pointer::get_position_v2();
+            coords.set("x", x as i32)?;
+            coords.set("y", y as i32)?;
             // TODO It expects a table of what buttons were pressed.
             coords.set("buttons", lua.create_table())?;
             Ok(coords)

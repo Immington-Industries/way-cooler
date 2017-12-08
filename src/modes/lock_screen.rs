@@ -204,10 +204,10 @@ impl Mode for LockScreen {
         })
     }
 
-    fn on_pointer_motion(&mut self, view: WlcView, _time: u32, point: Point) -> bool {
+    fn on_pointer_motion(&mut self, view: WlcView, _time: u32, x: f64, y: f64) -> bool {
         !self.eval_if_lockscreen(view, |view| {
             view.focus();
-            pointer::set_position(point);
+            pointer::set_position_v2(x, y);
             // false because default is false, but true is the base case here
             false
         })

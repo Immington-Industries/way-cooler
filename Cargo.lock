@@ -397,8 +397,8 @@ dependencies = [
 
 [[package]]
 name = "rustwlc"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "0.7.0"
+source = "git+https://github.com/Idleless/rust-wlc#3df375ae6b1286bbe5da9e2dd837308608fd79e2"
 dependencies = [
  "bitflags 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.33 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -479,7 +479,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "way-cooler"
-version = "0.6.2"
+version = "0.7.0"
 dependencies = [
  "bitflags 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cairo-rs 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -497,7 +497,7 @@ dependencies = [
  "petgraph 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "rlua 0.9.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustwlc 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustwlc 0.7.0 (git+https://github.com/Idleless/rust-wlc)",
  "uuid 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "wayland-scanner 0.9.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "wayland-server 0.9.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -622,7 +622,7 @@ dependencies = [
 "checksum rlua 0.9.7 (registry+https://github.com/rust-lang/crates.io-index)" = "fb7eec2f28b4812553f10b2e69888a5a674b2e761f5a39731c14541c32bdb6d8"
 "checksum rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)" = "dcf128d1287d2ea9d80910b5f1120d0b8eede3fbf1abe91c40d39ea7d51e6fda"
 "checksum rustc_version 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "c5f5376ea5e30ce23c03eb77cbe4962b988deead10910c372b226388b594c084"
-"checksum rustwlc 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)" = "70bc052a7492eef6d2767adb63bd9646f76bc9446ca421a89f1d5fb560dd43a9"
+"checksum rustwlc 0.7.0 (git+https://github.com/Idleless/rust-wlc)" = "<none>"
 "checksum semver 0.1.20 (registry+https://github.com/rust-lang/crates.io-index)" = "d4f410fedcf71af0345d7607d246e7ad15faaadd49d240ee3b24e5dc21a820ac"
 "checksum serde 0.9.15 (registry+https://github.com/rust-lang/crates.io-index)" = "34b623917345a631dc9608d5194cc206b3fe6c3554cd1c75b937e55e285254af"
 "checksum serde_json 0.9.10 (registry+https://github.com/rust-lang/crates.io-index)" = "ad8bcf487be7d2e15d3d543f04312de991d631cfe1b43ea0ade69e6a8a5b16a1"

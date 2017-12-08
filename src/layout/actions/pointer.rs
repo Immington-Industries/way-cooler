@@ -8,7 +8,7 @@ use uuid::Uuid;
 impl LayoutTree {
     /// Sets the absolute position of the cursor on the screen.
     pub fn set_pointer_pos(&mut self, point: Point) -> CommandResult {
-        input::pointer::set_position(point);
+        input::pointer::set_position_v2(point.x as f64, point.y as f64);
         Ok(())
     }
 
@@ -20,17 +20,17 @@ impl LayoutTree {
             .expect("Container had no geometry");
         drop(container);
         if edge.contains(RESIZE_TOPLEFT) {
-            input::pointer::set_position(origin);
+            input::pointer::set_position_v2(origin.x as f64, origin.y as f64);
         } else if edge.contains(RESIZE_TOPRIGHT) {
             origin.x += size.w as i32;
-            input::pointer::set_position(origin);
+            input::pointer::set_position_v2(origin.x as f64, origin.y as f64);
         } else if edge.contains(RESIZE_BOTTOMLEFT) {
             origin.y += size.h as i32;
-            input::pointer::set_position(origin);
+            input::pointer::set_position_v2(origin.x as f64, origin.y as f64);
         } else if edge.contains(RESIZE_BOTTOMRIGHT) {
             origin.x += size.w as i32;
             origin.y += size.h as i32;
-            input::pointer::set_position(origin);
+            input::pointer::set_position_v2(origin.x as f64, origin.y as f64);
         }
         Ok(origin)
     }
