@@ -560,6 +560,19 @@ impl InnerTree {
         }
     }
 
+    pub fn is_child_of(&self, child_ix: NodeIndex, target_ix: NodeIndex)
+                       -> Result<bool, GraphError> {
+        let mut cur_ix = child_ix;
+        while cur_ix != target_ix {
+            cur_ix = self.parent_of(cur_ix)?;
+            match self.graph[cur_ix] {
+                Container::View { .. } | Container::Container { ..} => {},
+                _ => return Ok(false)
+            }
+        }
+        return Ok(true)
+    }
+
     /// Gets the parent of a node, if the node exists
     pub fn parent_of(&self, node_ix: NodeIndex) -> Result<NodeIndex, GraphError> {
         let mut neighbors = self.graph
