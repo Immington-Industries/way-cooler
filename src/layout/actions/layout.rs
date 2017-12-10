@@ -946,7 +946,10 @@ impl LayoutTree {
                     }
                 }).collect();
 
-            if !self.tree.on_path(child_ix) && Some(child_ix) != self.active_container {
+            if !self.tree.on_path(child_ix) && Some(child_ix) != self.active_container &&
+                self.active_container.map(|active|
+                                          self.tree.is_child_of(child_ix, active).ok() != Some(false) &&
+                                          self.tree.is_child_of(active, child_ix).ok() == Some(false)) == Some(true) {
                 self.set_borders(child_ix, borders::Mode::Inactive)?;
             } else {
                 match self.tree[parent_ix] {
