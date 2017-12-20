@@ -260,12 +260,13 @@ impl Mode for CustomLua {
     fn on_pointer_motion(&mut self,
                          view: WlcView,
                          time: u32,
-                         point: Point) -> bool {
-        let result = Default.on_pointer_motion(view, time, point);
+                         x: f64,
+                         y: f64) -> bool {
+        let result = Default.on_pointer_motion(view, time, x, y);
         if let Some(id) = lookup_handle(view.into()) {
             send_to_lua(format!(
                 "way_cooler.on_pointer_motion(\"{}\", {})",
-                id, point_to_lua(point)))
+                id, point_to_lua(Point::new(x as i32, y as i32))))
         }
         result
     }

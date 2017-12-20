@@ -688,7 +688,7 @@ impl Tree {
                         if lock_mouse {
                             action.grab = new_point
                         } else {
-                            pointer::set_position(pointer);
+                            pointer::set_position_v2(pointer.x as f64, pointer.y as f64);
                         }
                         Ok(())
                     }

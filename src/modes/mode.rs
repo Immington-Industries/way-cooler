@@ -95,7 +95,8 @@ pub trait Mode {
     fn on_pointer_motion(&mut self,
                          view: WlcView,
                          time: u32,
-                         point: Point) -> bool {
-        Default.on_pointer_motion(view, time, point)
+                         x: f64,
+                         y: f64) -> bool {
+        Default.on_pointer_motion(view, time, x, y)
     }
 }
