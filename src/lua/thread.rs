@@ -88,6 +88,16 @@ pub fn update_registry_value(category: String) {
     queue.push(category);
 }
 
+// Reexported in lua/mod.rs
+/// Run a closure with the Lua state. The closure will execute in the Lua thread.
+pub fn run_with_lua<F, G>(func: F) -> G
+    where F: FnOnce(&mut rlua::Lua) -> G
+{
+    let mut lua = LUA.lock().expect("LUA was poisoned!");
+    let lua = &mut lua.0;
+    func(lua)
+}
+
 // Reexported in lua/mod.rs:11
 /// Attemps to send a LuaQuery to the Lua thread.
 pub fn send(query: LuaQuery) -> Result<Receiver<LuaResponse>, LuaSendError> {
