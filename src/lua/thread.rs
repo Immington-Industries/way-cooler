@@ -1,15 +1,20 @@
 //! Code for the internal Lua thread which handles all Lua requests.
 
+extern crate glib;
+
 use std::collections::btree_map::BTreeMap;
 use std::thread;
 use std::fs::{File};
 use std::path::Path;
 use std::fmt::{Debug, Formatter};
 use std::fmt::Result as FmtResult;
-use std::sync::{Mutex, RwLock};
+use std::sync::RwLock;
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::io::Read;
 use super::LUA;
+
+use glib::MainLoop;
+use glib::source::{idle_add, Continue};
 
 use convert::json::lua_to_json;
 
@@ -28,14 +33,14 @@ use ::layout::{lock_tree, ContainerType};
 
 lazy_static! {
     /// Sends requests to the Lua thread
-    static ref SENDER: Mutex<Option<Sender<LuaMessage>>> = Mutex::new(None);
+    /// Whether the Lua thread is currently running
+    static ref RUNNING: RwLock<bool> = RwLock::new(false);
 
     /// Requests to update the registry state from Lua
     static ref REGISTRY_QUEUE: RwLock<Vec<String>> = RwLock::new(vec![]);
 }
 
 pub const ERR_LOCK_RUNNING: &'static str = "Lua thread: unable to lock RUNNING";
-pub const ERR_LOCK_SENDER: &'static str = "Lua thread: unable to lock SENDER";
 pub const ERR_LOCK_QUEUE: &'static str =
     "Lua thread: unable to lock REGISTRY_QUEUE";
 
@@ -62,7 +67,7 @@ impl Debug for LuaMessage {
 // Reexported in lua/mod.rs:11
 /// Whether the Lua thread is currently available.
 pub fn running() -> bool {
-    SENDER.lock().expect(ERR_LOCK_RUNNING).is_some()
+    *RUNNING.read().expect(ERR_LOCK_RUNNING)
 }
 
 // Reexported in lua/mod.rs:11
@@ -70,10 +75,8 @@ pub fn running() -> bool {
 /// to sending a message to the Lua thread.
 #[derive(Debug)]
 pub enum LuaSendError {
-    /// The thread crashed, was shut down, or rebooted.
+    /// The thread was not initialized yet, crashed, was shut down, or rebooted.
     ThreadClosed,
-    /// The thread has not been initialized yet (maybe not used)
-    ThreadUninitialized,
     /// The sender had an issue, most likey because the thread panicked.
     /// Following the `Sender` API, the original value sent is returned.
     Sender(LuaQuery)
@@ -104,27 +107,31 @@ pub fn send(query: LuaQuery) -> Result<Receiver<LuaResponse>, LuaSendError> {
     if !running() {
         return Err(LuaSendError::ThreadClosed);
     }
-    let thread_sender: Sender<LuaMessage>;
-    {
-        let maybe_sender = SENDER.lock().expect(ERR_LOCK_SENDER);
-        match *maybe_sender {
-            Some(ref real_sender) => {
-                // Senders are designed to be cloneable
-                thread_sender = real_sender.clone();
-            },
-            // If the sender doesn't exist yet, the thread doesn't either
-            None => {
-                return Err(LuaSendError::ThreadUninitialized);
-            }
-        }
-    }
     // Create a response channel
     let (response_tx, response_rx) = channel();
     let message = LuaMessage { reply: response_tx, query: query };
-    match thread_sender.send(message) {
-        Ok(_) => Ok(response_rx),
-        Err(e) => Err(LuaSendError::Sender(e.0.query))
-    }
+    // No idea how to give the query to the thread without this
+    let (useless_tx, useless_rx) = channel();
+    useless_tx.send(message).map_err(|e| {
+        LuaSendError::Sender(e.0.query)
+    })?;
+    idle_add(move || {
+        let message = match useless_rx.recv() {
+            Err(e) => {
+                error!("Lua thread: unable to receive message: {}", e);
+                error!("Lua thread: now panicking!");
+                *RUNNING.write().expect(ERR_LOCK_RUNNING) = false;
+
+                panic!("Lua thread: lost contact with host, exiting!");
+            },
+            Ok(m) => m
+        };
+        let mut lua = LUA.lock().expect("LUA was poisoned!");
+        trace!("Handling a request");
+        handle_message(message, &mut lua.0);
+        Continue(false)
+    });
+    Ok(response_rx)
 }
 
 /// Initialize the Lua thread.
@@ -133,11 +140,10 @@ pub fn init() -> Result<(), rlua::Error> {
         rust_interop::register_libraries(&mut LUA.lock().expect("LUA was poisoned!").0)?;
     }
     info!("Starting Lua thread...");
-    let (tx, receiver) = channel();
-    *SENDER.lock().expect(ERR_LOCK_SENDER) = Some(tx);
+    *RUNNING.write().expect(ERR_LOCK_RUNNING) = true;
     let _lua_handle = thread::Builder::new()
         .name("Lua thread".to_string())
-        .spawn(move || main_loop(receiver));
+        .spawn(|| main_loop());
     // Immediately update all the values that the init file set
     send(LuaQuery::UpdateRegistryFromCache)
         .expect("Could not update registry from cache");
@@ -233,28 +239,10 @@ fn lua_init() {
 ///
 /// * Initialise the Lua state
 /// * Run a GMainLoop
-fn main_loop(receiver: Receiver<LuaMessage>) {
+fn main_loop() {
     lua_init();
-    loop {
-        trace!("Lua: awaiting request");
-        let request = receiver.recv();
-        let mut lua = LUA.lock().expect("LUA was poisoned!");
-        match request {
-            Err(e) => {
-                error!("Lua thread: unable to receive message: {}", e);
-                error!("Lua thread: now panicking!");
-                *SENDER.lock().expect(ERR_LOCK_RUNNING) = None;
-
-                panic!("Lua thread: lost contact with host, exiting!");
-            }
-            Ok(message) => {
-                trace!("Handling a request");
-                if !handle_message(message, &mut lua.0) {
-                    return
-                }
-            }
-        }
-    }
+    MainLoop::new(None, false).run();
+    *RUNNING.write().expect(ERR_LOCK_RUNNING) = false;
 }
 
 /// Handle each LuaQuery option sent to the thread
@@ -267,7 +255,7 @@ fn handle_message(request: LuaMessage, lua: &mut rlua::Lua) -> bool {
                 warn!("Lua termination callback returned an error: {:?}", error);
                 warn!("However, termination will continue");
             }
-            *SENDER.lock().expect(ERR_LOCK_RUNNING) = None;
+            *RUNNING.write().expect(ERR_LOCK_RUNNING) = false;
             thread_send(request.reply, LuaResponse::Pong);
 
             info!("Lua thread terminating!");
@@ -280,7 +268,7 @@ fn handle_message(request: LuaMessage, lua: &mut rlua::Lua) -> bool {
                 warn!("Lua restart callback returned an error: {:?}", error);
                 warn!("However, Lua will be restarted");
             }
-            *SENDER.lock().expect(ERR_LOCK_RUNNING) = None;
+            *RUNNING.write().expect(ERR_LOCK_RUNNING) = false;
             thread_send(request.reply, LuaResponse::Pong);
 
             // The only real way to restart
