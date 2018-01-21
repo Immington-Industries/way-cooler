@@ -30,9 +30,6 @@ lazy_static! {
     /// Sends requests to the Lua thread
     static ref SENDER: Mutex<Option<Sender<LuaMessage>>> = Mutex::new(None);
 
-    /// Whether the Lua thread is currently running
-    pub static ref RUNNING: RwLock<bool> = RwLock::new(false);
-
     /// Requests to update the registry state from Lua
     static ref REGISTRY_QUEUE: RwLock<Vec<String>> = RwLock::new(vec![]);
 }
@@ -65,7 +62,7 @@ impl Debug for LuaMessage {
 // Reexported in lua/mod.rs:11
 /// Whether the Lua thread is currently available.
 pub fn running() -> bool {
-    *RUNNING.read().expect(ERR_LOCK_RUNNING)
+    SENDER.lock().expect(ERR_LOCK_RUNNING).is_some()
 }
 
 // Reexported in lua/mod.rs:11
@@ -194,8 +191,6 @@ pub fn init() -> Result<(), rlua::Error> {
         info!("Skipping config search");
     }
 
-    // Only ready after loading libs
-    *RUNNING.write().expect(ERR_LOCK_RUNNING) = true;
     info!("Entering main loop...");
     let _lua_handle = thread::Builder::new()
         .name("Lua thread".to_string())
@@ -243,7 +238,7 @@ fn main_loop(receiver: Receiver<LuaMessage>) {
             Err(e) => {
                 error!("Lua thread: unable to receive message: {}", e);
                 error!("Lua thread: now panicking!");
-                *RUNNING.write().expect(ERR_LOCK_RUNNING) = false;
+                *SENDER.lock().expect(ERR_LOCK_RUNNING) = None;
 
                 panic!("Lua thread: lost contact with host, exiting!");
             }
@@ -267,7 +262,7 @@ fn handle_message(request: LuaMessage, lua: &mut rlua::Lua) -> bool {
                 warn!("Lua termination callback returned an error: {:?}", error);
                 warn!("However, termination will continue");
             }
-            *RUNNING.write().expect(ERR_LOCK_RUNNING) = false;
+            *SENDER.lock().expect(ERR_LOCK_RUNNING) = None;
             thread_send(request.reply, LuaResponse::Pong);
 
             info!("Lua thread terminating!");
@@ -280,7 +275,7 @@ fn handle_message(request: LuaMessage, lua: &mut rlua::Lua) -> bool {
                 warn!("Lua restart callback returned an error: {:?}", error);
                 warn!("However, Lua will be restarted");
             }
-            *RUNNING.write().expect(ERR_LOCK_RUNNING) = false;
+            *SENDER.lock().expect(ERR_LOCK_RUNNING) = None;
             thread_send(request.reply, LuaResponse::Pong);
 
             // The only real way to restart
