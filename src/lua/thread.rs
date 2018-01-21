@@ -90,12 +90,15 @@ pub fn update_registry_value(category: String) {
 
 // Reexported in lua/mod.rs
 /// Run a closure with the Lua state. The closure will execute in the Lua thread.
-pub fn run_with_lua<F, G>(func: F) -> G
-    where F: FnOnce(&mut rlua::Lua) -> G
+pub fn run_with_lua<F>(func: F) -> rlua::Result<()>
+    where F: 'static + FnMut(&mut rlua::Lua) -> rlua::Result<()>
 {
-    let mut lua = LUA.lock().expect("LUA was poisoned!");
-    let lua = &mut lua.0;
-    func(lua)
+    // TODO: Uhm, error handling?
+    match send(LuaQuery::ExecWithLua(Box::new(func))).unwrap().recv().unwrap() {
+        LuaResponse::Error(err) => Err(err),
+        LuaResponse::Pong => Ok(()),
+        _ => Err(rlua::Error::CoroutineInactive)
+    }
 }
 
 // Reexported in lua/mod.rs:11
@@ -336,6 +339,12 @@ fn handle_message(request: LuaMessage, lua: &mut rlua::Lua) -> bool {
         LuaQuery::ExecRust(func) => {
             let result = func(lua);
             thread_send(request.reply, LuaResponse::Variable(Some(result)));
+        },
+        LuaQuery::ExecWithLua(mut func) => {
+            match func(lua) {
+                Ok(()) => thread_send(request.reply, LuaResponse::Pong),
+                Err(e) => thread_send(request.reply, LuaResponse::Error(e))
+            };
         },
         LuaQuery::HandleKey(press) => {
             trace!("Lua: handling keypress {}", &press);
