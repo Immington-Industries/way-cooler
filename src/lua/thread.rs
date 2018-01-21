@@ -129,13 +129,48 @@ pub fn send(query: LuaQuery) -> Result<Receiver<LuaResponse>, LuaSendError> {
 
 /// Initialize the Lua thread.
 pub fn init() -> Result<(), rlua::Error> {
-    info!("Initializing lua...");
+    {
+        rust_interop::register_libraries(&mut LUA.lock().expect("LUA was poisoned!").0)?;
+    }
+    info!("Starting Lua thread...");
     let (tx, receiver) = channel();
     *SENDER.lock().expect(ERR_LOCK_SENDER) = Some(tx);
+    let _lua_handle = thread::Builder::new()
+        .name("Lua thread".to_string())
+        .spawn(move || main_loop(receiver));
+    // Immediately update all the values that the init file set
+    send(LuaQuery::UpdateRegistryFromCache)
+        .expect("Could not update registry from cache");
+
+    // Re-tile the layout tree, to make any changes appear immediantly.
+    if let Ok(mut tree) = lock_tree() {
+        tree.layout_active_of(ContainerType::Root)
+            .unwrap_or_else(|_| {
+                warn!("Lua thread could not re-tile the layout tree");
+            });
+        // Yeah this is silly, it's so the active border can be updated properly.
+        if let Some(active_id) = tree.active_id() {
+            tree.focus(active_id)
+                .expect("Could not focus on the focused id");
+        }
+    }
+    Ok(())
+}
+
+pub fn on_compositor_ready() {
+    info!("Running lua on_init()");
+    // Call the special init hook function that we read from the init file
+    ::lua::init()
+        .expect("Could not initialize lua thread!");
+    send(LuaQuery::Execute(INIT_LUA_FUNC.to_owned())).err()
+        .map(|error| warn!("Lua init callback returned an error: {:?}", error));
+}
+
+fn lua_init() {
+    info!("Initializing lua...");
     let mut lua = LUA.lock().expect("LUA was poisoned!");
     let mut lua = &mut lua.0;
     info!("Loading way-cooler libraries...");
-    rust_interop::register_libraries(&mut lua)?;
 
     let (use_config, maybe_init_file) = init_path::get_config();
     if use_config {
@@ -149,7 +184,8 @@ pub fn init() -> Result<(), rlua::Error> {
                     let paths: String = package.get("path")
                         .expect("package.path not defined in Lua");
                     package.set("path", paths + ";" + init_dir.join("?.lua").to_str()
-                                .expect("init_dir not a valid UTF-8 string"))?;
+                                .expect("init_dir not a valid UTF-8 string"))
+                        .expect("Failed to set package.path");
                 }
                 let mut init_contents = String::new();
                 init_file.read_to_string(&mut init_contents)
@@ -191,45 +227,14 @@ pub fn init() -> Result<(), rlua::Error> {
         info!("Skipping config search");
     }
 
-    info!("Entering main loop...");
-    let _lua_handle = thread::Builder::new()
-        .name("Lua thread".to_string())
-        .spawn(move || main_loop(receiver));
-    // Immediately update all the values that the init file set
-    send(LuaQuery::UpdateRegistryFromCache)
-        .expect("Could not update registry from cache");
-
-    // Re-tile the layout tree, to make any changes appear immediantly.
-    if let Ok(mut tree) = lock_tree() {
-        tree.layout_active_of(ContainerType::Root)
-            .unwrap_or_else(|_| {
-                warn!("Lua thread could not re-tile the layout tree");
-            });
-        // Yeah this is silly, it's so the active border can be updated properly.
-        if let Some(active_id) = tree.active_id() {
-            tree.focus(active_id)
-                .expect("Could not focus on the focused id");
-        }
-    }
-    Ok(())
-}
-
-pub fn on_compositor_ready() {
-    info!("Running lua on_init()");
-    // Call the special init hook function that we read from the init file
-    ::lua::init()
-        .expect("Could not initialize lua thread!");
-    send(LuaQuery::Execute(INIT_LUA_FUNC.to_owned())).err()
-        .map(|error| warn!("Lua init callback returned an error: {:?}", error));
 }
 
 /// Main loop of the Lua thread:
 ///
-/// ## Loop
-/// * Wait for a message from the receiver
-/// * Handle message
-/// * Send response
+/// * Initialise the Lua state
+/// * Run a GMainLoop
 fn main_loop(receiver: Receiver<LuaMessage>) {
+    lua_init();
     loop {
         trace!("Lua: awaiting request");
         let request = receiver.recv();
