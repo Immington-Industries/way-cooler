@@ -8,10 +8,9 @@ use std::fs::{File};
 use std::path::Path;
 use std::fmt::{Debug, Formatter};
 use std::fmt::Result as FmtResult;
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::io::Read;
-use super::LUA;
 
 use glib::MainLoop;
 use glib::source::{idle_add, Continue};
@@ -31,7 +30,14 @@ use registry::{self};
 
 use ::layout::{lock_tree, ContainerType};
 
+struct LuaWrapper(rlua::Lua);
+
+unsafe impl Send for LuaWrapper{}
+
 lazy_static! {
+    // XXX: The Mutex is not actually needed. The Lua state will be thread-local to the Lua thread.
+    static ref LUA: Mutex<LuaWrapper> = Mutex::new(LuaWrapper(rlua::Lua::new()));
+
     /// Sends requests to the Lua thread
     /// Whether the Lua thread is currently running
     static ref RUNNING: RwLock<bool> = RwLock::new(false);
