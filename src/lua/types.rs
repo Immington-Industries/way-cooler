@@ -23,6 +23,8 @@ pub enum LuaQuery {
     ExecFile(String),
     /// Execute some Rust using the Lua context.
     ExecRust(fn(&mut rlua::Lua) -> rlua::Value<'static>),
+    /// Execute some Rust using the Lua context.
+    ExecWithLua(Box<FnMut(&mut rlua::Lua) -> rlua::Result<()>>),
 
     /// Handle the key press for the given key.
     HandleKey(KeyPress),
@@ -45,6 +47,8 @@ impl Debug for LuaQuery {
             // and why we have lua/types.rs
             LuaQuery::ExecRust(_) =>
                 write!(f, "LuaQuery::ExecRust()"),
+            LuaQuery::ExecWithLua(_) =>
+                write!(f, "LuaQuery::ExecWithLua()"),
             LuaQuery::HandleKey(ref press) =>
                 write!(f, "LuaQuery::HandleKey({:?})", press),
             LuaQuery::UpdateRegistryFromCache =>

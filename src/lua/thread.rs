@@ -1,5 +1,7 @@
 //! Code for the internal Lua thread which handles all Lua requests.
 
+extern crate glib;
+
 use std::collections::btree_map::BTreeMap;
 use std::thread;
 use std::fs::{File};
@@ -9,7 +11,9 @@ use std::fmt::Result as FmtResult;
 use std::sync::{Mutex, RwLock};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::io::Read;
-use super::LUA;
+
+use glib::MainLoop;
+use glib::source::{idle_add, Continue};
 
 use convert::json::lua_to_json;
 
@@ -26,19 +30,23 @@ use registry::{self};
 
 use ::layout::{lock_tree, ContainerType};
 
-lazy_static! {
-    /// Sends requests to the Lua thread
-    static ref SENDER: Mutex<Option<Sender<LuaMessage>>> = Mutex::new(None);
+struct LuaWrapper(rlua::Lua);
 
+unsafe impl Send for LuaWrapper{}
+
+lazy_static! {
+    // XXX: The Mutex is not actually needed. The Lua state will be thread-local to the Lua thread.
+    static ref LUA: Mutex<LuaWrapper> = Mutex::new(LuaWrapper(rlua::Lua::new()));
+
+    /// Sends requests to the Lua thread
     /// Whether the Lua thread is currently running
-    pub static ref RUNNING: RwLock<bool> = RwLock::new(false);
+    static ref RUNNING: RwLock<bool> = RwLock::new(false);
 
     /// Requests to update the registry state from Lua
     static ref REGISTRY_QUEUE: RwLock<Vec<String>> = RwLock::new(vec![]);
 }
 
 pub const ERR_LOCK_RUNNING: &'static str = "Lua thread: unable to lock RUNNING";
-pub const ERR_LOCK_SENDER: &'static str = "Lua thread: unable to lock SENDER";
 pub const ERR_LOCK_QUEUE: &'static str =
     "Lua thread: unable to lock REGISTRY_QUEUE";
 
@@ -73,10 +81,8 @@ pub fn running() -> bool {
 /// to sending a message to the Lua thread.
 #[derive(Debug)]
 pub enum LuaSendError {
-    /// The thread crashed, was shut down, or rebooted.
+    /// The thread was not initialized yet, crashed, was shut down, or rebooted.
     ThreadClosed,
-    /// The thread has not been initialized yet (maybe not used)
-    ThreadUninitialized,
     /// The sender had an issue, most likey because the thread panicked.
     /// Following the `Sender` API, the original value sent is returned.
     Sender(LuaQuery)
@@ -88,44 +94,95 @@ pub fn update_registry_value(category: String) {
     queue.push(category);
 }
 
+// Reexported in lua/mod.rs
+/// Run a closure with the Lua state. The closure will execute in the Lua thread.
+pub fn run_with_lua<F>(func: F) -> rlua::Result<()>
+    where F: 'static + FnMut(&mut rlua::Lua) -> rlua::Result<()>
+{
+    // TODO: Uhm, error handling?
+    match send(LuaQuery::ExecWithLua(Box::new(func))).unwrap().recv().unwrap() {
+        LuaResponse::Error(err) => Err(err),
+        LuaResponse::Pong => Ok(()),
+        _ => Err(rlua::Error::CoroutineInactive)
+    }
+}
+
 // Reexported in lua/mod.rs:11
 /// Attemps to send a LuaQuery to the Lua thread.
 pub fn send(query: LuaQuery) -> Result<Receiver<LuaResponse>, LuaSendError> {
     if !running() {
         return Err(LuaSendError::ThreadClosed);
     }
-    let thread_sender: Sender<LuaMessage>;
-    {
-        let maybe_sender = SENDER.lock().expect(ERR_LOCK_SENDER);
-        match *maybe_sender {
-            Some(ref real_sender) => {
-                // Senders are designed to be cloneable
-                thread_sender = real_sender.clone();
-            },
-            // If the sender doesn't exist yet, the thread doesn't either
-            None => {
-                return Err(LuaSendError::ThreadUninitialized);
-            }
-        }
-    }
     // Create a response channel
     let (response_tx, response_rx) = channel();
     let message = LuaMessage { reply: response_tx, query: query };
-    match thread_sender.send(message) {
-        Ok(_) => Ok(response_rx),
-        Err(e) => Err(LuaSendError::Sender(e.0.query))
-    }
+    // No idea how to give the query to the thread without this
+    let (useless_tx, useless_rx) = channel();
+    useless_tx.send(message).map_err(|e| {
+        LuaSendError::Sender(e.0.query)
+    })?;
+    idle_add(move || {
+        let message = match useless_rx.recv() {
+            Err(e) => {
+                error!("Lua thread: unable to receive message: {}", e);
+                error!("Lua thread: now panicking!");
+                *RUNNING.write().expect(ERR_LOCK_RUNNING) = false;
+
+                panic!("Lua thread: lost contact with host, exiting!");
+            },
+            Ok(m) => m
+        };
+        let mut lua = LUA.lock().expect("LUA was poisoned!");
+        trace!("Handling a request");
+        handle_message(message, &mut lua.0);
+        Continue(false)
+    });
+    Ok(response_rx)
 }
 
 /// Initialize the Lua thread.
 pub fn init() -> Result<(), rlua::Error> {
+    {
+        rust_interop::register_libraries(&mut LUA.lock().expect("LUA was poisoned!").0)?;
+    }
+    info!("Starting Lua thread...");
+    *RUNNING.write().expect(ERR_LOCK_RUNNING) = true;
+    let _lua_handle = thread::Builder::new()
+        .name("Lua thread".to_string())
+        .spawn(|| main_loop());
+    // Immediately update all the values that the init file set
+    send(LuaQuery::UpdateRegistryFromCache)
+        .expect("Could not update registry from cache");
+
+    // Re-tile the layout tree, to make any changes appear immediantly.
+    if let Ok(mut tree) = lock_tree() {
+        tree.layout_active_of(ContainerType::Root)
+            .unwrap_or_else(|_| {
+                warn!("Lua thread could not re-tile the layout tree");
+            });
+        // Yeah this is silly, it's so the active border can be updated properly.
+        if let Some(active_id) = tree.active_id() {
+            tree.focus(active_id)
+                .expect("Could not focus on the focused id");
+        }
+    }
+    Ok(())
+}
+
+pub fn on_compositor_ready() {
+    info!("Running lua on_init()");
+    // Call the special init hook function that we read from the init file
+    ::lua::init()
+        .expect("Could not initialize lua thread!");
+    send(LuaQuery::Execute(INIT_LUA_FUNC.to_owned())).err()
+        .map(|error| warn!("Lua init callback returned an error: {:?}", error));
+}
+
+fn lua_init() {
     info!("Initializing lua...");
-    let (tx, receiver) = channel();
-    *SENDER.lock().expect(ERR_LOCK_SENDER) = Some(tx);
     let mut lua = LUA.lock().expect("LUA was poisoned!");
     let mut lua = &mut lua.0;
     info!("Loading way-cooler libraries...");
-    rust_interop::register_libraries(&mut lua)?;
 
     let (use_config, maybe_init_file) = init_path::get_config();
     if use_config {
@@ -139,7 +196,8 @@ pub fn init() -> Result<(), rlua::Error> {
                     let paths: String = package.get("path")
                         .expect("package.path not defined in Lua");
                     package.set("path", paths + ";" + init_dir.join("?.lua").to_str()
-                                .expect("init_dir not a valid UTF-8 string"))?;
+                                .expect("init_dir not a valid UTF-8 string"))
+                        .expect("Failed to set package.path");
                 }
                 let mut init_contents = String::new();
                 init_file.read_to_string(&mut init_contents)
@@ -181,67 +239,16 @@ pub fn init() -> Result<(), rlua::Error> {
         info!("Skipping config search");
     }
 
-    // Only ready after loading libs
-    *RUNNING.write().expect(ERR_LOCK_RUNNING) = true;
-    info!("Entering main loop...");
-    let _lua_handle = thread::Builder::new()
-        .name("Lua thread".to_string())
-        .spawn(move || main_loop(receiver));
-    // Immediately update all the values that the init file set
-    send(LuaQuery::UpdateRegistryFromCache)
-        .expect("Could not update registry from cache");
-
-    // Re-tile the layout tree, to make any changes appear immediantly.
-    if let Ok(mut tree) = lock_tree() {
-        tree.layout_active_of(ContainerType::Root)
-            .unwrap_or_else(|_| {
-                warn!("Lua thread could not re-tile the layout tree");
-            });
-        // Yeah this is silly, it's so the active border can be updated properly.
-        if let Some(active_id) = tree.active_id() {
-            tree.focus(active_id)
-                .expect("Could not focus on the focused id");
-        }
-    }
-    Ok(())
-}
-
-pub fn on_compositor_ready() {
-    info!("Running lua on_init()");
-    // Call the special init hook function that we read from the init file
-    ::lua::init()
-        .expect("Could not initialize lua thread!");
-    send(LuaQuery::Execute(INIT_LUA_FUNC.to_owned())).err()
-        .map(|error| warn!("Lua init callback returned an error: {:?}", error));
 }
 
 /// Main loop of the Lua thread:
 ///
-/// ## Loop
-/// * Wait for a message from the receiver
-/// * Handle message
-/// * Send response
-fn main_loop(receiver: Receiver<LuaMessage>) {
-    loop {
-        trace!("Lua: awaiting request");
-        let request = receiver.recv();
-        let mut lua = LUA.lock().expect("LUA was poisoned!");
-        match request {
-            Err(e) => {
-                error!("Lua thread: unable to receive message: {}", e);
-                error!("Lua thread: now panicking!");
-                *RUNNING.write().expect(ERR_LOCK_RUNNING) = false;
-
-                panic!("Lua thread: lost contact with host, exiting!");
-            }
-            Ok(message) => {
-                trace!("Handling a request");
-                if !handle_message(message, &mut lua.0) {
-                    return
-                }
-            }
-        }
-    }
+/// * Initialise the Lua state
+/// * Run a GMainLoop
+fn main_loop() {
+    lua_init();
+    MainLoop::new(None, false).run();
+    *RUNNING.write().expect(ERR_LOCK_RUNNING) = false;
 }
 
 /// Handle each LuaQuery option sent to the thread
@@ -326,6 +333,12 @@ fn handle_message(request: LuaMessage, lua: &mut rlua::Lua) -> bool {
         LuaQuery::ExecRust(func) => {
             let result = func(lua);
             thread_send(request.reply, LuaResponse::Variable(Some(result)));
+        },
+        LuaQuery::ExecWithLua(mut func) => {
+            match func(lua) {
+                Ok(()) => thread_send(request.reply, LuaResponse::Pong),
+                Err(e) => thread_send(request.reply, LuaResponse::Error(e))
+            };
         },
         LuaQuery::HandleKey(press) => {
             trace!("Lua: handling keypress {}", &press);
