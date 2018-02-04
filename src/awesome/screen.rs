@@ -124,10 +124,7 @@ pub fn init(lua: &Lua) -> rlua::Result<Class> {
         // TODO Move to Screen impl like the others
         screens.push(screen);
     }
-    // TODO Uncomment
-    // This breaks rc.lua because of layoutbox stuff.
-    // Please fix that when you uncomment this.
-    lua.globals().set(SCREENS_HANDLE, lua.create_table()/*screens.to_lua(lua)?*/)?;
+    lua.globals().set(SCREENS_HANDLE, screens.to_lua(lua)?)?;
     Ok(res)
 }
 
