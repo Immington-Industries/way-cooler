@@ -90,6 +90,7 @@ impl UserData for ClassState {}
 
 impl <'lua> Class<'lua> {
     pub fn builder(lua: &'lua Lua,
+                   name: &str,
                    allocator: Option<Allocator>,
                    collector: Option<Collector>,
                    checker: Option<Checker>)
@@ -101,6 +102,7 @@ impl <'lua> Class<'lua> {
         let table = lua.create_table();
         // Store in not meta table so we can't index it
         table.set("data", class)?;
+        table.set("name", name)?;
         table.set("properties", Vec::<Property>::new().to_lua(lua)?)?;
         let meta = lua.create_table();
         meta.set("signals", lua.create_table())?;

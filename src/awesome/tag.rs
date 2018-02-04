@@ -45,7 +45,7 @@ impl <'lua> ToLua<'lua> for Tag<'lua> {
 impl UserData for TagState {}
 
 pub fn init(lua: &Lua) -> rlua::Result<Class> {
-    method_setup(lua, Class::builder(lua, Some(Rc::new(Tag::new)), None, None)?)?
+    method_setup(lua, Class::builder(lua, "tag", Some(Rc::new(Tag::new)), None, None)?)?
         .save_class("tag")?
         .build()
 }

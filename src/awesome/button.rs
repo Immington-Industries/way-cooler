@@ -77,7 +77,7 @@ impl_objectable!(Button, ButtonState);
 
 
 pub fn init(lua: &Lua) -> rlua::Result<Class> {
-    Class::builder(lua, Some(Rc::new(Button::new)), None, None)?
+    Class::builder(lua, "button", Some(Rc::new(Button::new)), None, None)?
         .method("__call".into(),
                 lua.create_function(|lua, _: rlua::Value| Button::new(lua)))?
         .property(Property::new("button".into(),

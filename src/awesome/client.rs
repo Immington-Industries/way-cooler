@@ -44,7 +44,7 @@ impl <'lua> ToLua<'lua> for Client<'lua> {
 impl UserData for ClientState {}
 
 pub fn init(lua: &Lua) -> rlua::Result<Class> {
-    method_setup(lua, Class::builder(lua, Some(Rc::new(Client::new)), None, None)?)?
+    method_setup(lua, Class::builder(lua, "client", Some(Rc::new(Client::new)), None, None)?)?
         .save_class("client")?
         .build()
 }

@@ -107,7 +107,7 @@ impl <'lua> ToLua<'lua> for Drawable<'lua> {
 impl UserData for DrawableState {}
 
 pub fn init(lua: &Lua) -> rlua::Result<Class> {
-    Class::builder(lua, Some(Rc::new(Drawable::new)), None, None)?
+    Class::builder(lua, "drawable", Some(Rc::new(Drawable::new)), None, None)?
         .method("geometry".into(), lua.create_function(geometry))?
         .property(Property::new("surface".into(),
                                 None,

@@ -46,7 +46,7 @@ impl <'lua> ToLua<'lua> for Key<'lua> {
 impl UserData for KeyState {}
 
 pub fn init(lua: &Lua) -> rlua::Result<Class> {
-    property_setup(lua, method_setup(lua, Class::builder(lua, Some(Rc::new(Key::new)), None, None)?)?)?
+    property_setup(lua, method_setup(lua, Class::builder(lua, "key", Some(Rc::new(Key::new)), None, None)?)?)?
         .save_class("key")?
         .build()
 }

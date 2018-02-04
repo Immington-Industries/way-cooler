@@ -47,7 +47,8 @@ impl <'lua> ToLua<'lua> for Root<'lua> {
 impl UserData for RootState {}
 
 pub fn init(lua: &Lua) -> rlua::Result<Class> {
-    method_setup(lua, Class::builder(lua, Some(Rc::new(Root::new)), None, None)?)?
+    // FIXME: In awesome there is no root class
+    method_setup(lua, Class::builder(lua, "FIXME", Some(Rc::new(Root::new)), None, None)?)?
         .save_class("root")?
         .build()
 }

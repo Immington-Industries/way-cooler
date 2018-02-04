@@ -114,7 +114,7 @@ impl <'lua> Screen<'lua> {
 }
 
 pub fn init(lua: &Lua) -> rlua::Result<Class> {
-    let res = property_setup(lua, method_setup(lua, Class::builder(lua, Some(Rc::new(Screen::new)), None, None)?)?)?
+    let res = property_setup(lua, method_setup(lua, Class::builder(lua, "screen", Some(Rc::new(Screen::new)), None, None)?)?)?
         .save_class("screen")?
         .build()?;
     let mut screens: Vec<Screen> = vec![];
