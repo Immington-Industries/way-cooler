@@ -79,11 +79,12 @@ fn type_override(_lua: &rlua::Lua, arg: rlua::Value) -> Result<String, rlua::Err
         Value::Table(t) => {
             // Handle our own objects specially: Return the metatable's .__class.name if it exists,
             // else return "table".
-            let unused_error = Err(rlua::Error::CoroutineInactive);
-            t.get_metatable().map_or(unused_error,
-                                     |t| t.raw_get("__class"))
-                .and_then(|t: rlua::Table| t.raw_get("name"))
-                .or(Ok("table".to_owned()))
+            match t.get_metatable() {
+                None => Ok("table".to_owned()),
+                Some(t) => t.raw_get("__class")
+                    .and_then(|t: rlua::Table| t.raw_get("name"))
+                    .or(Ok("table".to_owned()))
+            }
         }
     }
 }
