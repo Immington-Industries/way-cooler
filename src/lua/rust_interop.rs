@@ -42,6 +42,7 @@ pub fn register_libraries(lua: &rlua::Lua) -> LuaResult<()> {
                        lua.create_function(ipc_set))?;
         let globals = lua.globals();
         globals.set("__rust", rust_table)?;
+        globals.set("type", lua.create_function(type_override))?;
     }
     trace!("Executing Lua init...");
     let init_code = include_str!("../../lib/lua/lua_init.lua");
@@ -54,6 +55,37 @@ pub fn register_libraries(lua: &rlua::Lua) -> LuaResult<()> {
     lua.exec::<()>(init_code, Some("lua_init.lua"))?;
     trace!("Lua register_libraries complete");
     Ok(())
+}
+
+/// This function behaves just like Lua's built-in type() function, but also recognises classes and
+/// returns special names for them.
+#[allow(unused)]
+fn type_override(_lua: &rlua::Lua, arg: rlua::Value) -> Result<String, rlua::Error> {
+    use rlua::Value;
+
+    // Lua's type() returns the result of lua_typename(), but rlua does not make that available to
+    // us, so write our own.
+    match arg {
+        Value::Nil => Ok("nil".to_owned()),
+        Value::Boolean(_) => Ok("boolean".to_owned()),
+        Value::LightUserData(_) => Ok("userdata".to_owned()),
+        Value::UserData(_) => Ok("userdata".to_owned()),
+        Value::Integer(_) => Ok("number".to_owned()),
+        Value::Number(_) => Ok("number".to_owned()),
+        Value::String(_) => Ok("string".to_owned()),
+        Value::Function(_) => Ok("function".to_owned()),
+        Value::Thread(_) => Ok("thread".to_owned()),
+        Value::Error(e) => Err(e),
+        Value::Table(t) => {
+            // Handle our own objects specially: Return the metatable's .__class.name if it exists,
+            // else return "table".
+            let unused_error = Err(rlua::Error::CoroutineInactive);
+            t.get_metatable().map_or(unused_error,
+                                     |t| t.raw_get("__class"))
+                .and_then(|t: rlua::Table| t.raw_get("name"))
+                .or(Ok("table".to_owned()))
+        }
+    }
 }
 
 /// Run a command
