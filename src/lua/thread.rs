@@ -111,6 +111,12 @@ pub fn run_with_lua<F>(func: F) -> rlua::Result<()>
     }
 }
 
+fn emit_refresh(lua: &rlua::Lua) {
+    // FIXME: This assumes that the Lua code does not e.g. unset the global. Can we somehow emit
+    // the signal directly?
+    let _ = lua.exec::<()>("awesome.emit_signal('refresh')", None);
+}
+
 fn idle_add_once<F>(func: F)
     where F: Send + 'static + FnOnce() -> ()
 {
@@ -133,9 +139,11 @@ pub fn send(query: LuaQuery) -> Result<Receiver<LuaResponse>, LuaSendError> {
     idle_add_once(move || {
         LUA.with(|lua| {
             trace!("Handling a request");
-            if !handle_message(message, &mut *lua.borrow_mut()) {
+            let lua = &mut *lua.borrow_mut();
+            if !handle_message(message, lua) {
                 MAIN_LOOP.with(|main_loop| main_loop.borrow().quit())
             }
+            emit_refresh(lua);
         });
     });
     Ok(response_rx)
@@ -238,6 +246,7 @@ fn load_config(mut lua: &mut rlua::Lua) {
         else {
             info!("Skipping config search");
         }
+        emit_refresh(lua);
 }
 
 /// Main loop of the Lua thread:
