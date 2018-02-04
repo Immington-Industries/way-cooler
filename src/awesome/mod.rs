@@ -18,7 +18,7 @@ mod drawin;
 mod drawable;
 mod mouse;
 mod root;
-mod signal;
+pub mod signal;
 mod object;
 mod class;
 mod property;

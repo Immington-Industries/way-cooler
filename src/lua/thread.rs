@@ -24,6 +24,7 @@ use super::types::*;
 use super::rust_interop;
 use super::init_path;
 use super::super::keys;
+use awesome::signal;
 
 use registry::{self};
 
@@ -112,9 +113,9 @@ pub fn run_with_lua<F>(func: F) -> rlua::Result<()>
 }
 
 fn emit_refresh(lua: &rlua::Lua) {
-    // FIXME: This assumes that the Lua code does not e.g. unset the global. Can we somehow emit
-    // the signal directly?
-    let _ = lua.exec::<()>("awesome.emit_signal('refresh')", None);
+    // FIXME: Log errors, but ignore them otherwise, just like awesome does. This should be done in
+    // emit_signal(), not here.
+    let _ = signal::global_emit_signal(lua, ("refresh".to_owned(), rlua::Value::Nil));
 }
 
 fn idle_add_once<F>(func: F)
