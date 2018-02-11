@@ -69,9 +69,8 @@ impl Debug for LuaMessage {
     }
 }
 
-// Reexported in lua/mod.rs:11
 /// Whether the Lua thread is currently available.
-pub fn running() -> bool {
+fn running() -> bool {
     RUNNING.load(Ordering::Relaxed)
 }
 
