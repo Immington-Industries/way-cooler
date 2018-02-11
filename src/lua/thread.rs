@@ -38,10 +38,6 @@ thread_local! {
 }
 
 lazy_static! {
-    /// Sends requests to the Lua thread
-    /// Whether the Lua thread is currently running
-    static ref RUNNING: AtomicBool = AtomicBool::new(false);
-
     /// Requests to update the registry state from Lua
     static ref REGISTRY_QUEUE: RwLock<Vec<String>> = RwLock::new(vec![]);
 }
@@ -129,7 +125,6 @@ pub fn send(query: LuaQuery) -> Receiver<LuaResponse> {
 /// Initialize the Lua thread.
 pub fn init() {
     info!("Starting Lua thread...");
-    RUNNING.store(true, Ordering::Relaxed);
     let _lua_handle = thread::Builder::new()
         .name("Lua thread".to_string())
         .spawn(|| main_loop());
@@ -233,7 +228,6 @@ fn main_loop() {
         .expect("Could not register lua libraries");
     lua_init();
     MAIN_LOOP.with(|main_loop| main_loop.borrow().run());
-    RUNNING.store(false, Ordering::Relaxed);
 }
 
 /// Handle each LuaQuery option sent to the thread
@@ -246,7 +240,6 @@ fn handle_message(request: LuaMessage, lua: &mut rlua::Lua) -> bool {
                 warn!("Lua termination callback returned an error: {:?}", error);
                 warn!("However, termination will continue");
             }
-            RUNNING.store(false, Ordering::Relaxed);
             thread_send(request.reply, LuaResponse::Pong);
 
             info!("Lua thread terminating!");
