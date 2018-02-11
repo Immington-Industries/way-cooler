@@ -3,7 +3,7 @@
 
 use rustc_serialize::json::ToJson;
 use uuid::Uuid;
-use super::{send, LuaQuery, running};
+use super::{send, LuaQuery};
 use rlua;
 use rlua::prelude::LuaResult;
 use ::convert::json::json_to_lua;
@@ -115,10 +115,7 @@ fn ipc_get<'lua>(lua: &'lua rlua::Lua, (category, key): (String, String))
 /// ipc 'set' handler
 fn ipc_set(_lua: &rlua::Lua, category: String) -> Result<(), rlua::Error> {
     update_registry_value(category);
-    if running() {
-        send(LuaQuery::UpdateRegistryFromCache)
-            .expect("Could not send message to Lua thread to update registry");
-    }
+    send(LuaQuery::UpdateRegistryFromCache);
     Ok(())
 }
 

@@ -38,10 +38,6 @@ thread_local! {
 }
 
 lazy_static! {
-    /// Sends requests to the Lua thread
-    /// Whether the Lua thread is currently running
-    static ref RUNNING: AtomicBool = AtomicBool::new(false);
-
     /// Requests to update the registry state from Lua
     static ref REGISTRY_QUEUE: RwLock<Vec<String>> = RwLock::new(vec![]);
 }
@@ -69,29 +65,6 @@ impl Debug for LuaMessage {
     }
 }
 
-// Reexported in lua/mod.rs:11
-/// Whether the Lua thread is currently available.
-pub fn running() -> bool {
-    RUNNING.load(Ordering::Relaxed)
-}
-
-// Reexported in lua/mod.rs:11
-/// Errors which may arise from attempting
-/// to sending a message to the Lua thread.
-#[derive(Debug)]
-pub enum LuaSendError {
-    /// The thread was not initialized yet, crashed, was shut down, or rebooted.
-    ThreadClosed,
-}
-
-impl Into<rlua::Error> for LuaSendError {
-    fn into(self) -> rlua::Error {
-        rlua::Error::RuntimeError(match self {
-            LuaSendError::ThreadClosed => "Lua thread is not running".into()
-        })
-    }
-}
-
 /// Appends this combination of category and key to the registry queue.
 pub fn update_registry_value(category: String) {
     let mut queue = REGISTRY_QUEUE.write().expect(ERR_LOCK_QUEUE);
@@ -103,7 +76,7 @@ pub fn update_registry_value(category: String) {
 pub fn run_with_lua<F>(func: F) -> rlua::Result<()>
     where F: 'static + FnMut(&rlua::Lua) -> rlua::Result<()>
 {
-    let send_result = send(LuaQuery::ExecWithLua(Box::new(func))).map_err(|err|err.into())?
+    let send_result = send(LuaQuery::ExecWithLua(Box::new(func)))
         .recv().map_err(|err| {
             rlua::Error::RuntimeError(format!("Could not receive from mspc: {:?}", err))
         })?;
@@ -132,10 +105,7 @@ fn idle_add_once<F>(func: F)
 
 // Reexported in lua/mod.rs:11
 /// Attemps to send a LuaQuery to the Lua thread.
-pub fn send(query: LuaQuery) -> Result<Receiver<LuaResponse>, LuaSendError> {
-    if !running() {
-        return Err(LuaSendError::ThreadClosed);
-    }
+pub fn send(query: LuaQuery) -> Receiver<LuaResponse> {
     // Create a response channel
     let (response_tx, response_rx) = channel();
     let message = LuaMessage { reply: response_tx, query: query };
@@ -149,19 +119,17 @@ pub fn send(query: LuaQuery) -> Result<Receiver<LuaResponse>, LuaSendError> {
             emit_refresh(lua);
         });
     });
-    Ok(response_rx)
+    response_rx
 }
 
 /// Initialize the Lua thread.
 pub fn init() {
     info!("Starting Lua thread...");
-    RUNNING.store(true, Ordering::Relaxed);
     let _lua_handle = thread::Builder::new()
         .name("Lua thread".to_string())
         .spawn(|| main_loop());
     // Immediately update all the values that the init file set
-    send(LuaQuery::UpdateRegistryFromCache)
-        .expect("Could not update registry from cache");
+    send(LuaQuery::UpdateRegistryFromCache);
 
     // Re-tile the layout tree, to make any changes appear immediantly.
     if let Ok(mut tree) = lock_tree() {
@@ -181,8 +149,7 @@ pub fn on_compositor_ready() {
     info!("Running lua on_init()");
     // Call the special init hook function that we read from the init file
     init();
-    send(LuaQuery::Execute(INIT_LUA_FUNC.to_owned())).err()
-        .map(|error| warn!("Lua init callback returned an error: {:?}", error));
+    send(LuaQuery::Execute(INIT_LUA_FUNC.to_owned()));
 }
 
 fn lua_init() {
@@ -261,7 +228,6 @@ fn main_loop() {
         .expect("Could not register lua libraries");
     lua_init();
     MAIN_LOOP.with(|main_loop| main_loop.borrow().run());
-    RUNNING.store(false, Ordering::Relaxed);
 }
 
 /// Handle each LuaQuery option sent to the thread
@@ -274,7 +240,6 @@ fn handle_message(request: LuaMessage, lua: &mut rlua::Lua) -> bool {
                 warn!("Lua termination callback returned an error: {:?}", error);
                 warn!("However, termination will continue");
             }
-            RUNNING.store(false, Ordering::Relaxed);
             thread_send(request.reply, LuaResponse::Pong);
 
             info!("Lua thread terminating!");
@@ -293,8 +258,7 @@ fn handle_message(request: LuaMessage, lua: &mut rlua::Lua) -> bool {
             unsafe { *lua = rlua::Lua::new_with_debug(); }
             rust_interop::register_libraries(lua)
                 .expect("Could not register libraries");
-            send(LuaQuery::UpdateRegistryFromCache)
-                .expect("Could not update registry from cache");
+            send(LuaQuery::UpdateRegistryFromCache);
             load_config(lua);
             keys::init();
             return true;

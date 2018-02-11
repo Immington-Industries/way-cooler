@@ -144,7 +144,7 @@ pub extern fn compositor_ready() {
 
 pub extern fn compositor_terminating() {
     info!("Compositor terminating!");
-    lua::send(lua::LuaQuery::Terminate).ok();
+    lua::send(lua::LuaQuery::Terminate);
     if let Ok(mut tree) = try_lock_tree() {
         tree.destroy_tree().unwrap_or_else(|err|
             error!("Could not destroy tree: {:#?}", err)

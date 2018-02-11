@@ -2,7 +2,7 @@
 //! then a custom, user-defined Lua callback is ran.
 use rustwlc::*;
 use rustwlc::Size;
-use ::lua::{self, LuaQuery, LuaSendError};
+use ::lua::{self, LuaQuery};
 use ::layout::{try_lock_tree, Handle};
 use ::convert::json::{size_to_json, point_to_json, geometry_to_json};
 
@@ -284,12 +284,7 @@ fn lookup_handle(handle: Handle) -> Option<String> {
 
 fn send_to_lua<Q: Into<String>>(msg: Q) {
     let msg = msg.into();
-    match lua::send(LuaQuery::Execute(msg.clone())) {
-        Ok(_) => {},
-        Err(LuaSendError::ThreadClosed) => {
-            warn!("Thread closed, could not execute {:?}", msg)
-        }
-    }
+    lua::send(LuaQuery::Execute(msg.clone()));
 }
 
 fn size_to_lua(size: Size) -> String {
