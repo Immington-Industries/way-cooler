@@ -13,8 +13,7 @@ fn activate_thread() {
 #[test]
 fn thread_exec_okay() {
     let hello_receiver = send(LuaQuery::Execute(
-        "hello = 'hello world'".to_string()))
-        .expect("Unable to send hello world");
+        "hello = 'hello world'".to_string()));
     let hello_result = hello_receiver.recv()
         .expect("Unable to receive hello world");
     assert!(hello_result.is_ok());
@@ -24,8 +23,7 @@ fn thread_exec_okay() {
     }
 
     let assert_receiver = send(LuaQuery::Execute(
-        "assert(hello == 'hello world')".to_string()))
-        .expect("Unble to send hello assertion");
+        "assert(hello == 'hello world')".to_string()));
     let assert_result = assert_receiver.recv()
         .expect("Unabel to receive hello assertion");
     assert!(hello_result.is_ok());
@@ -38,8 +36,7 @@ fn thread_exec_okay() {
 #[test]
 fn thread_exec_err() {
     let assert_receiver = send(LuaQuery::Execute(
-        "assert(true == false, 'Logic works')".to_string()))
-        .expect("send assertion error");
+        "assert(true == false, 'Logic works')".to_string()));
     let assert_result = assert_receiver.recv()
         .expect("receive assertion error result");
     assert!(assert_result.is_err(), "expected error from syntax error");
@@ -57,8 +54,7 @@ fn thread_exec_err() {
     }
 
     let syn_err_rx = send(LuaQuery::Execute(
-        "local variable_err = 'sequence\\y'".to_string()))
-        .expect("send syntax error");
+        "local variable_err = 'sequence\\y'".to_string()));
     let syn_err_result = syn_err_rx.recv()
         .expect("receive assertion error result");
     assert!(syn_err_result.is_err(), "expected error from syntax error");
@@ -78,7 +74,7 @@ fn thread_exec_err() {
 #[test]
 fn thread_exec_file_ok() {
     let file_receiver = send(LuaQuery::ExecFile(
-        "lib/test/lua-exec-file.lua".to_string())).unwrap();
+        "lib/test/lua-exec-file.lua".to_string()));
     let file_result = file_receiver.recv().unwrap();
     if let LuaResponse::Error(err) = file_result {
         if let rlua::Error::RuntimeError(ioerr) = err {
@@ -96,7 +92,7 @@ fn thread_exec_file_ok() {
 
     // Print the method from the file
     let test_receiver = send(LuaQuery::Execute(
-        "confirm_file()".to_string())).unwrap();
+        "confirm_file()".to_string()));
     let test_result = test_receiver.recv().unwrap();
     assert!(test_result.is_ok());
     match test_result {
@@ -108,8 +104,7 @@ fn thread_exec_file_ok() {
 #[test]
 fn thread_exec_file_err() {
     let run_receiver = send(LuaQuery::ExecFile(
-        "lib/test/lua-bad-assert.lua".to_string()))
-        .expect("Unable to request lua-bad-assert.lua");
+        "lib/test/lua-bad-assert.lua".to_string()));
     let run_result = run_receiver.recv()
         .expect("Unable to receive lua-bad-assert.lua");
     assert!(run_result.is_err());
@@ -126,8 +121,7 @@ fn thread_exec_file_err() {
     }
 
     let syntax_receiver = send(LuaQuery::ExecFile(
-        "lib/test/lua-syntax-err.txt".to_string()))
-        .expect("Unable to request lua-syntax-err.txt");
+        "lib/test/lua-syntax-err.txt".to_string()));
     let syntax_result = syntax_receiver.recv()
         .expect("Unable to receive lua-syntax-err.txt");
     assert!(syntax_result.is_err());
@@ -146,8 +140,7 @@ fn thread_exec_file_err() {
 
 #[test]
 fn test_rust_exec() {
-    let rust_receiver = send(LuaQuery::ExecRust(rust_lua_fn))
-        .expect("Unable to request rust func exec");
+    let rust_receiver = send(LuaQuery::ExecRust(rust_lua_fn));
     let rust_result = rust_receiver.recv()
         .expect("Unable to receive rust func exec");
     assert!(rust_result.is_ok());

@@ -195,9 +195,7 @@ fn xkb_get_group_names<'lua>(lua: &'lua Lua, _: ()) -> rlua::Result<Value<'lua>>
 /// Restart Awesome by restarting the Lua thread
 fn restart<'lua>(_: &'lua Lua, _: ()) -> rlua::Result<()> {
     use lua::{self, LuaQuery};
-    if let Err(err) = lua::send(LuaQuery::Restart) {
-        warn!("Could not restart Lua thread {:#?}", err);
-    }
+    lua::send(LuaQuery::Restart);
     Ok(())
 }
 

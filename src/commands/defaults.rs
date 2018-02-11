@@ -124,8 +124,7 @@ fn print_pointer() {
                 local x, y = wm.pointer.get_position()\n\
                 print('The cursor is at ' .. x .. ', ' .. y)\n\
                 end".to_string();
-    lua::send(LuaQuery::Execute(code))
-        .expect("Error telling Lua to get pointer coords");
+    lua::send(LuaQuery::Execute(code));
 }
 
 fn way_cooler_quit() {
@@ -150,7 +149,7 @@ fn dmenu_lua_dofile() {
         stdout.read_to_string(&mut output).expect("Unable to read stdout");
 
         let result = lua::send(LuaQuery::ExecFile(output))
-            .expect("unable to contact Lua").recv().expect("Can't get reply");
+            .recv().expect("Can't get reply");
         trace!("Lua result: {:?}", result);
     }).expect("Unable to spawn thread");
 }
@@ -170,16 +169,14 @@ fn dmenu_eval() {
            stdout.read_to_string(&mut output).expect("Unable to read stdout");
 
            let result = lua::send(LuaQuery::Execute(output))
-               .expect("Unable to contact Lua").recv().expect("Can't get reply");
+               .recv().expect("Can't get reply");
            trace!("Lua result: {:?}", result)
     }).expect("Unable to spawn thread");
 }
 
 fn way_cooler_restart() {
     keys::clear_keys();
-    if let Err(err) = lua::send(lua::LuaQuery::Restart) {
-        warn!("Could not send restart signal, {:?}", err);
-    }
+    lua::send(lua::LuaQuery::Restart);
 }
 
 /// A no-op(eration) command.

@@ -255,17 +255,7 @@ impl Mode for Default {
                         func();
                     },
                     KeyEvent::Lua => {
-                        match lua::send(LuaQuery::HandleKey(press)) {
-                            Ok(_) => {},
-                            Err(err) => {
-                                // We may want to wait for Lua's reply from
-                                // keypresses; for example if the table is tampered
-                                // with or Lua is restarted or Lua has an error.
-                                // ATM Lua asynchronously logs this but in the future
-                                // an error popup/etc is a good idea.
-                                warn!("Error sending keypress: {:?}", err);
-                            }
-                        }
+                        lua::send(LuaQuery::HandleKey(press));
                     }
                 }
                 return !passthrough

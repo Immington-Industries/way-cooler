@@ -115,8 +115,7 @@ fn ipc_get<'lua>(lua: &'lua rlua::Lua, (category, key): (String, String))
 /// ipc 'set' handler
 fn ipc_set(_lua: &rlua::Lua, category: String) -> Result<(), rlua::Error> {
     update_registry_value(category);
-    send(LuaQuery::UpdateRegistryFromCache)
-        .expect("Could not send message to Lua thread to update registry");
+    send(LuaQuery::UpdateRegistryFromCache);
     Ok(())
 }
 
