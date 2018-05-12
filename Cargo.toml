@@ -14,7 +14,7 @@ wlroots = { path = "./wlroots-rs" }
 lazy_static = "0.2"
 log = "0.3"
 env_logger = "0.3"
-rlua = { version = "0.12.0", default-features = false }
+rlua = "0.12.0"
 bitflags = "0.7"
 nix = "0.6"
 getopts = "0.2"
@@ -31,7 +31,6 @@ pkg-config = "0.3.*"
 
 [features]
 disable-debug = []
-builtin-lua= ["rlua/builtin-lua"]
 
 [profile.release]
 debug = true
