@@ -3,7 +3,7 @@
 
 use awesome;
 use std::panic;
-use wlroots::{Compositor, XWaylandManagerHandler};
+use wlroots::{CompositorHandle, XWaylandManagerHandler};
 
 pub struct XWaylandManager;
 
@@ -14,7 +14,7 @@ impl XWaylandManager {
 }
 
 impl XWaylandManagerHandler for XWaylandManager {
-    fn on_ready(&mut self, _: &mut Compositor) {
+    fn on_ready(&mut self, _: CompositorHandle) {
         // TODO Do this properly with Results!
         match panic::catch_unwind(|| ::awesome::lua::setup_lua()) {
             Ok(_) => {}
