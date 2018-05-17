@@ -1,64 +1,68 @@
 use compositor::{self, Action, Server, Shell, View};
 use std::time::Duration;
-use wlroots::{self, Compositor, CursorHandle, HandleResult, KeyboardHandle, Origin,
-              PointerHandler, XdgV6ShellState::*, pointer_events::*, WLR_BUTTON_RELEASED};
+use wlroots::{CompositorHandle, CursorHandle, HandleResult, KeyboardHandle, Origin,
+              PointerHandler, PointerHandle, XdgV6ShellState::*, pointer_events::*, WLR_BUTTON_RELEASED};
 
 #[derive(Debug, Default)]
 pub struct Pointer;
 
 impl PointerHandler for Pointer {
     fn on_motion(&mut self,
-                 compositor: &mut Compositor,
-                 _: &mut wlroots::Pointer,
+                 compositor: CompositorHandle,
+                 _: PointerHandle,
                  event: &MotionEvent) {
-        let server: &mut Server = compositor.into();
-        let Server { ref mut cursor,
-                     ref mut seat,
-                     ref mut views,
-                     .. } = *server;
-        run_handles!([(cursor: {&mut *cursor})] => {
-            let (x, y) = event.delta();
-            cursor.move_to(event.device(), x, y);
-        }).expect("Cursor was destroyed");
-        match seat.action {
-            Some(Action::Moving { start }) => {
-                if let Some(mut view) = view_at_pointer(views, cursor) {
-                    let meta_held_down = seat.meta;
-                    if meta_held_down {
-                        move_view(seat, cursor, &mut view, start).expect("Could not move view");
+        with_handles!([(compositor: {compositor})] => {
+            let server: &mut Server = compositor.data.downcast_mut().unwrap();
+            let Server { ref mut cursor,
+            ref mut seat,
+            ref mut views,
+            .. } = *server;
+            with_handles!([(cursor: {&mut *cursor})] => {
+                let (x, y) = event.delta();
+                cursor.move_to(event.device(), x, y);
+            }).expect("Cursor was destroyed");
+            match seat.action {
+                Some(Action::Moving { start }) => {
+                    if let Some(mut view) = view_at_pointer(views, cursor) {
+                        let meta_held_down = seat.meta;
+                        if meta_held_down {
+                            move_view(seat, cursor, &mut view, start).expect("Could not move view");
+                        }
                     }
                 }
+                _ => { /* TODO */ }
             }
-            _ => { /* TODO */ }
-        }
+        }).unwrap();
     }
 
     fn on_button(&mut self,
-                 compositor: &mut Compositor,
-                 _: &mut wlroots::Pointer,
+                 compositor: CompositorHandle,
+                 _: PointerHandle,
                  event: &ButtonEvent) {
-        let server: &mut Server = compositor.into();
-        let Server { ref mut cursor,
-                     ref mut views,
-                     ref mut seat,
-                     ref mut keyboards,
-                     .. } = *server;
-        if event.state() == WLR_BUTTON_RELEASED {
-            seat.action = None;
-            send_pointer_button(seat, event).expect("Could not send pointer button");
-            return
-        }
-        if let Some(view) = view_at_pointer(views, cursor) {
-            focus_under_pointer(seat, &mut **keyboards, { &mut *view }).expect("Could not focus \
-                                                                                view");
-            let meta_held_down = seat.meta;
-            if meta_held_down && event.button() == BTN_LEFT {
-                move_view(seat, cursor, view, None).expect("Could not move view");
+        with_handles!([(compositor: {compositor})] => {
+            let server: &mut Server = compositor.data.downcast_mut().unwrap();
+            let Server { ref mut cursor,
+            ref mut views,
+            ref mut seat,
+            ref mut keyboards,
+            .. } = *server;
+            if event.state() == WLR_BUTTON_RELEASED {
+                seat.action = None;
+                send_pointer_button(seat, event).expect("Could not send pointer button");
+                return
             }
-            send_pointer_button(seat, event).expect("Could not send pointer button");
-        } else {
-            focus_under_pointer(seat, &mut **keyboards, None).expect("Could not focus view");
-        }
+            if let Some(view) = view_at_pointer(views, cursor) {
+                focus_under_pointer(seat, &mut **keyboards, { &mut *view }).expect("Could not focus \
+                                                                                view");
+                let meta_held_down = seat.meta;
+                if meta_held_down && event.button() == BTN_LEFT {
+                    move_view(seat, cursor, view, None).expect("Could not move view");
+                }
+                send_pointer_button(seat, event).expect("Could not send pointer button");
+            } else {
+                focus_under_pointer(seat, &mut **keyboards, None).expect("Could not focus view");
+            }
+        }).unwrap();
     }
 }
 
@@ -69,7 +73,7 @@ fn view_at_pointer<'view>(views: &'view mut [View],
         match view.shell.clone() {
             Shell::XdgV6(ref mut shell) => {
                 let (mut sx, mut sy) = (0.0, 0.0);
-                let seen = run_handles!([(shell: {&mut *shell}),
+                let seen = with_handles!([(shell: {&mut *shell}),
                                          (cursor: {&mut *cursor})] => {
                     let (lx, ly) = cursor.coords();
                     let Origin {x: shell_x, y: shell_y} = view.origin;
@@ -98,7 +102,7 @@ fn focus_under_pointer<'view, V>(seat: &mut compositor::Seat,
             if let Some(mut focused_view) = seat.focused.take() {
                 match focused_view.shell {
                     Shell::XdgV6(ref mut shell) => {
-                        run_handles!([(shell: {shell})] => {
+                        with_handles!([(shell: {shell})] => {
                             match shell.state() {
                                 Some(&mut TopLevel(ref mut toplevel)) => {
                                     toplevel.set_activated(false)
@@ -109,7 +113,7 @@ fn focus_under_pointer<'view, V>(seat: &mut compositor::Seat,
                     }
                 }
             }
-            run_handles!([(seat: {&mut seat.seat})] => {
+            with_handles!([(seat: {&mut seat.seat})] => {
                 seat.keyboard_clear_focus()
             })
         }
@@ -118,7 +122,7 @@ fn focus_under_pointer<'view, V>(seat: &mut compositor::Seat,
             for keyboard in { &mut *keyboards } {
                 match &mut view.shell {
                     &mut Shell::XdgV6(ref mut shell) => {
-                        run_handles!([(seat: {&mut seat.seat}),
+                        with_handles!([(seat: {&mut seat.seat}),
                                       (shell: {&mut *shell}),
                                       (surface: {shell.surface()}),
                                       (keyboard: {keyboard})] => {
@@ -154,7 +158,7 @@ fn move_view<O>(seat: &mut compositor::Seat,
 {
     let Origin { x: shell_x,
                  y: shell_y } = view.origin;
-    run_handles!([(cursor: {cursor})] => {
+    with_handles!([(cursor: {cursor})] => {
         let (lx, ly) = cursor.coords();
         match start.into() {
             None => {
@@ -171,7 +175,7 @@ fn move_view<O>(seat: &mut compositor::Seat,
 }
 
 fn send_pointer_button(seat: &mut compositor::Seat, event: &ButtonEvent) -> HandleResult<()> {
-    run_handles!([(seat: {&mut seat.seat})] => {
+    with_handles!([(seat: {&mut seat.seat})] => {
         seat.pointer_notify_button(Duration::from_millis(event.time_msec() as _),
                                    event.button(),
                                    event.state() as u32);
