@@ -23,7 +23,7 @@ pub struct Seat {
 impl Seat {
     pub fn new(seat: SeatHandle) -> Seat {
         Seat { seat,
-               meta: true,
+               meta: false,
                ..Seat::default() }
     }
 }
