@@ -26,6 +26,7 @@ sources:
 tasks:
   - setup: |
       rustup install stable
+      rustup component add rustfmt-preview
       export CC=clang
       rustup default stable
       export RUST_BACKTRACE=full
