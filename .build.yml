@@ -35,3 +35,4 @@ tasks:
       cd way-cooler
       cargo build --verbose
       cargo test --verbose
+      cargo fmt -- --write-mode diff
