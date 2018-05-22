@@ -1,16 +1,18 @@
 use compositor::{self, Action, Server, Shell, View};
-use std::time::Duration;
 use compositor::seat::Seat;
-use wlroots::types::Cursor;
+use std::time::Duration;
 use wlroots::{CompositorHandle, HandleResult, KeyboardHandle, Origin, PointerHandle,
               PointerHandler, XdgV6ShellState::*, pointer_events::*, WLR_BUTTON_RELEASED};
+use wlroots::types::Cursor;
 
 #[derive(Debug, Default)]
 pub struct Pointer;
 
 impl PointerHandler for Pointer {
-
-    fn on_motion_absolute(&mut self, compositor: CompositorHandle, _: PointerHandle, event: &AbsoluteMotionEvent) {
+    fn on_motion_absolute(&mut self,
+                          compositor: CompositorHandle,
+                          _: PointerHandle,
+                          event: &AbsoluteMotionEvent) {
         with_handles!([(compositor: {compositor})] => {
             let server: &mut Server = compositor.data.downcast_mut().unwrap();
             let Server { ref mut cursor,
@@ -168,20 +170,17 @@ fn focus_under_pointer<'view, V>(seat: &mut compositor::Seat,
 ///
 /// Otherwise, update the view position relative to where the move started,
 /// which is provided by Action::Moving.
-fn move_view<O>(seat: &mut compositor::Seat,
-                cursor: &mut Cursor,
-                view: &mut View,
-                start: O)
+fn move_view<O>(seat: &mut compositor::Seat, cursor: &mut Cursor, view: &mut View, start: O)
     where O: Into<Option<Origin>>
 {
     let Origin { x: shell_x,
-    y: shell_y } = view.origin;
+                 y: shell_y } = view.origin;
     let (lx, ly) = cursor.coords();
     match start.into() {
         None => {
             let (view_sx, view_sy) = (lx - shell_x as f64, ly - shell_y as f64);
             let start = Origin::new(view_sx as _, view_sy as _);
-            seat.action = Some(Action::Moving{start});
+            seat.action = Some(Action::Moving { start });
         }
         Some(start) => {
             let pos = Origin::new(lx as i32 - start.x, ly as i32 - start.y);
