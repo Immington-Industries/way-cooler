@@ -32,7 +32,8 @@ pub struct Server {
 impl Default for Server {
     fn default() -> Server {
         let xcursor_manager =
-            XCursorManager::create("default".to_string(), 24).expect("Could not create xcursor manager");
+            XCursorManager::create("default".to_string(), 24).expect("Could not create xcursor \
+                                                                      manager");
         xcursor_manager.load(1.0);
         Server { xcursor_manager,
                  layout: OutputLayoutHandle::default(),
@@ -48,10 +49,11 @@ impl Default for Server {
 impl Server {
     pub fn new(layout: OutputLayoutHandle, mut cursor: CursorHandle) -> Self {
         let mut xcursor_manager =
-            XCursorManager::create("default".to_string(), 24).expect("Could not create xcursor manager");
+            XCursorManager::create("default".to_string(), 24).expect("Could not create xcursor \
+                                                                      manager");
         xcursor_manager.load(1.0);
         cursor.run(|c| xcursor_manager.set_cursor_image("left_ptr".to_string(), c))
-            .unwrap();
+              .unwrap();
 
         Server { xcursor_manager,
                  layout,
