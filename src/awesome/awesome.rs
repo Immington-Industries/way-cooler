@@ -2,7 +2,6 @@
 
 use super::xproperty::{XProperty, XPropertyType, PROPERTIES};
 use super::{signal, XCB_CONNECTION_HANDLE};
-use awesome::lua::NEXT_LUA;
 use cairo::{self, ImageSurface, ImageSurfaceData};
 use gdk_pixbuf::{Pixbuf, PixbufExt};
 use glib::translate::{ToGlibPtr, FromGlibPtrNone};
@@ -221,10 +220,10 @@ fn systray<'lua>(_: &'lua Lua, _: ()) -> rlua::Result<(u32, Value)> {
 
 /// Restart Awesome by restarting the Lua thread
 fn restart<'lua>(_: &'lua Lua, _: ()) -> rlua::Result<()> {
-    info!("Lua thread restarting");
-    NEXT_LUA.with(|next_lua| {
-        next_lua.set(true);
-    });
+    error!("Lua thread cannot restart.");
+    error!("See https://github.com/way-cooler/way-cooler/issues/555 for more details.");
+    error!("Shutting down..");
+    super::lua::terminate();
     Ok(())
 }
 

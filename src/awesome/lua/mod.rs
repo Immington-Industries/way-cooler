@@ -14,7 +14,6 @@ use wlroots::CompositorHandle;
 
 use std::cell::RefCell;
 use std::io::Read;
-use std::cell::Cell;
 
 use awesome::signal;
 
@@ -24,9 +23,6 @@ thread_local! {
 
     /// Global Lua state.
     pub static LUA: RefCell<rlua::Lua> = RefCell::new(unsafe { rlua::Lua::new_with_debug() });
-
-    /// If set then we have restarted the Lua thread. We need to replace LUA when it's not borrowed.
-    pub static NEXT_LUA: Cell<bool> = Cell::new(false);
 
     /// Main GLib loop
     static MAIN_LOOP: RefCell<MainLoop> = RefCell::new(MainLoop::new(None, false));

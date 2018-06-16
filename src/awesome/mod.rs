@@ -1,11 +1,9 @@
 //! Awesome compatibility modules
 
-use wlroots;
 
 use rlua::{self, LightUserData, Lua, Table};
 use std::{env, mem, path::PathBuf};
 use xcb::{xkb, Connection};
-use awesome::lua::setup_lua;
 
 mod awesome;
 mod button;
@@ -26,7 +24,7 @@ pub mod signal;
 mod tag;
 mod xproperty;
 
-pub use self::lua::{NEXT_LUA, LUA};
+pub use self::lua::LUA;
 
 pub use self::drawin::{Drawin, DRAWINS_HANDLE};
 pub use self::key::Key;
@@ -46,19 +44,7 @@ pub const XCB_CONNECTION_HANDLE: &'static str = "__xcb_connection";
 /// This restarts the Lua thread if there is a new one pending
 #[no_mangle]
 pub extern "C" fn refresh_awesome() {
-    NEXT_LUA.with(|new_lua_check| {
-        if new_lua_check.get() {
-            new_lua_check.set(false);
-            LUA.with(|lua| {
-                let mut lua = lua.borrow_mut();
-                unsafe {
-                    *lua = rlua::Lua::new_with_debug();
-                }
-            });
-            let compositor = wlroots::compositor_handle().unwrap();
-            setup_lua(compositor);
-        }
-    });
+    // TODO
 }
 
 pub fn init(lua: &Lua, server: &mut Server) -> rlua::Result<()> {
