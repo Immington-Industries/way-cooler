@@ -1,6 +1,6 @@
 use compositor::{Server, Shell, View};
 use std::collections::HashSet;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 use wlroots;
 use wlroots::events::seat_events::SetCursorEvent;
@@ -34,7 +34,7 @@ pub struct DragIcon {
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
 pub struct Seat {
     pub seat: SeatHandle,
-    pub focused: Option<Rc<View>>,
+    pub focused: Option<Arc<View>>,
     pub action: Option<Action>,
     pub has_client_cursor: bool,
     pub meta: bool,
@@ -57,7 +57,7 @@ impl Seat {
         }).unwrap();
     }
 
-    pub fn focus_view(&mut self, view: Rc<View>, views: &mut Vec<Rc<View>>) {
+    pub fn focus_view(&mut self, view: Arc<View>, views: &mut Vec<Arc<View>>) {
         if let Some(ref focused) = self.focused {
             if *focused == view {
                 return
@@ -95,7 +95,7 @@ impl Seat {
         where O: Into<Option<Origin>>
     {
         let Origin { x: shell_x,
-                     y: shell_y } = view.origin.get();
+                     y: shell_y } = *view.origin.lock().unwrap();
         let (lx, ly) = cursor.coords();
         match start.into() {
             None => {
@@ -105,19 +105,19 @@ impl Seat {
             }
             Some(start) => {
                 let pos = Origin::new(lx as i32 - start.x, ly as i32 - start.y);
-                view.origin.replace(pos);
+                *view.origin.lock().unwrap() = pos;
             }
         };
     }
 
     pub fn begin_resize(&mut self,
                         cursor: &mut CursorHandle,
-                        view: Rc<View>,
-                        views: &mut Vec<Rc<View>>,
+                        view: Arc<View>,
+                        views: &mut Vec<Arc<View>>,
                         edges: Edges) {
         self.focus_view(view.clone(), views);
         with_handles!([(cursor: {cursor})] => {
-            let Origin { x: view_x, y: view_y } = view.origin.get();
+            let Origin { x: view_x, y: view_y } = *view.origin.lock().unwrap();
             let (lx, ly) = cursor.coords();
             let (view_sx, view_sy) = (lx - view_x as f64, ly - view_y as f64);
             let offset = Origin::new(view_sx as _, view_sy as _);
@@ -130,16 +130,16 @@ impl Seat {
         }).unwrap();
     }
 
-    pub fn view_at_pointer(views: &mut [Rc<View>],
+    pub fn view_at_pointer(views: &mut [Arc<View>],
                            cursor: &mut Cursor)
-                           -> (Option<Rc<View>>, Option<SurfaceHandle>, f64, f64) {
+                           -> (Option<Arc<View>>, Option<SurfaceHandle>, f64, f64) {
         for view in views {
             match view.shell {
                 Shell::XdgV6(ref shell) => {
                     let (mut sx, mut sy) = (0.0, 0.0);
                     let surface = with_handles!([(shell: {shell})] => {
                         let (lx, ly) = cursor.coords();
-                        let Origin {x: shell_x, y: shell_y} = view.origin.get();
+                        let Origin {x: shell_x, y: shell_y} = *view.origin.lock().unwrap();
                         let (view_sx, view_sy) = (lx - shell_x as f64, ly - shell_y as f64);
                         shell.surface_at(view_sx, view_sy, &mut sx, &mut sy)
                     }).unwrap();
@@ -155,7 +155,7 @@ impl Seat {
     pub fn update_cursor_position(&mut self,
                                   cursor: &mut Cursor,
                                   xcursor_manager: &mut XCursorManager,
-                                  views: &mut [Rc<View>],
+                                  views: &mut [Arc<View>],
                                   time_msec: Option<u32>) {
         let time = if let Some(time_msec) = time_msec {
             Duration::from_millis(time_msec as u64)

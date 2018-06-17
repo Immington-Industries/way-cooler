@@ -35,6 +35,7 @@ pub use self::mousegrabber::mousegrabber_handle;
 pub use self::object::{Object, Objectable};
 pub use self::root::ROOT_KEYS_HANDLE;
 pub use self::signal::*;
+pub use self::client::{notify_client_add, notify_client_remove};
 
 use compositor::Server;
 
@@ -68,7 +69,7 @@ pub fn init(lua: &Lua, server: &mut Server) -> rlua::Result<()> {
     button::init(lua)?;
     awesome::init(lua)?;
     key::init(lua)?;
-    client::init(lua)?;
+    client::init(lua, server)?;
     screen::init(lua, server)?;
     keygrabber::init(lua)?;
     root::init(lua)?;

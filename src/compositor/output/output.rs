@@ -8,7 +8,7 @@ use wlroots::{project_box, Area, CompositorHandle, Origin, OutputHandle, OutputH
 use awesome::{Drawin, Objectable, DRAWINS_HANDLE, LUA};
 use compositor::{Server, View};
 use rlua::{self, AnyUserData, Lua};
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct Output;
 
@@ -83,9 +83,9 @@ fn render_surface(renderer: &mut Renderer,
 /// Render all of the client views.
 fn render_views(renderer: &mut Renderer,
                 layout: &mut OutputLayoutHandle,
-                views: &mut Vec<Rc<View>>) {
+                views: &mut Vec<Arc<View>>) {
     for view in views.iter_mut().rev() {
-        let origin = view.origin.get();
+        let origin = *view.origin.lock().unwrap();
         view.for_each_surface(&mut |mut surface: SurfaceHandle, sx, sy| {
                                   render_surface(renderer,
                                                  layout,

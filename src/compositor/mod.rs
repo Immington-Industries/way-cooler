@@ -17,7 +17,7 @@ pub use self::xwayland::*;
 use wlroots::{self, Compositor, CompositorBuilder, Cursor, CursorHandle, KeyboardHandle,
               OutputHandle, OutputLayout, OutputLayoutHandle, PointerHandle, XCursorManager};
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct Server {
@@ -28,7 +28,7 @@ pub struct Server {
     pub keyboards: Vec<KeyboardHandle>,
     pub pointers: Vec<PointerHandle>,
     pub outputs: Vec<OutputHandle>,
-    pub views: Vec<Rc<View>>
+    pub views: Vec<Arc<View>>
 }
 
 impl Default for Server {

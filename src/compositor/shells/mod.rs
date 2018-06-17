@@ -10,6 +10,13 @@ pub enum Shell {
                                     * TODO Xdg */
 }
 
+impl Default for Shell {
+    fn default() -> Self {
+        // The default shell is always invalid
+        Shell::XdgV6(XdgV6ShellSurfaceHandle::new())
+    }
+}
+
 impl Shell {
     /// Get a wlr surface from the shell.
     pub fn surface(&mut self) -> SurfaceHandle {

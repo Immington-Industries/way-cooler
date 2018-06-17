@@ -2,7 +2,9 @@ use compositor::{Action, Server, Shell, View};
 use wlroots::{CompositorHandle, Origin, SurfaceHandle, SurfaceHandler, XdgV6ShellHandler,
               XdgV6ShellManagerHandler, XdgV6ShellState::*, XdgV6ShellSurfaceHandle};
 
-use std::rc::Rc;
+use std::sync::Arc;
+use awesome::{notify_client_add, notify_client_remove};
+use awesome::lua::LUA;
 use wlroots::xdg_shell_v6_events::{MoveEvent, ResizeEvent};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -52,7 +54,7 @@ impl XdgV6ShellHandler for XdgV6 {
                 if view.shell == shell {
                     with_handles!([(cursor: {cursor})] => {
                         let (lx, ly) = cursor.coords();
-                        let Origin { x: shell_x, y: shell_y } = view.origin.get();
+                        let Origin { x: shell_x, y: shell_y } = *view.origin.lock().unwrap();
                         let (view_sx, view_sy) = (lx - shell_x as f64, ly - shell_y as f64);
                         let start = Origin::new(view_sx as _, view_sy as _);
                         *action = Some(Action::Moving { start: start });
@@ -81,9 +83,11 @@ impl XdgV6ShellHandler for XdgV6 {
                          .. } = *server;
 
             if let Some(view) = views.iter().find(|view| view.shell == surface).cloned() {
-                if let Some(move_resize) = view.pending_move_resize.get() {
+                let move_resize = *view.pending_move_resize.lock().unwrap();
+                if let Some(move_resize) = move_resize {
                     if move_resize.serial >= configure_serial {
-                        let Origin {mut x, mut y} = view.origin.get();
+                        let mut origin = *view.origin.lock().unwrap();
+                        let Origin { mut x, mut y } = origin;
                         if move_resize.update_x {
                             x  = move_resize.area.origin.x + move_resize.area.size.width -
                                  view.get_size().width;
@@ -93,10 +97,10 @@ impl XdgV6ShellHandler for XdgV6 {
                                  view.get_size().height;
                         }
 
-                        view.origin.set(Origin { x, y });
+                        *view.origin.lock().unwrap() = Origin { x, y };
 
                         if move_resize.serial == configure_serial {
-                            view.pending_move_resize.set(None);
+                            *view.pending_move_resize.lock().unwrap() = None;
                         }
                     }
                 }
@@ -123,9 +127,13 @@ impl XdgV6ShellHandler for XdgV6 {
                          ref mut xcursor_manager,
                          .. } = *server;
             if is_toplevel {
-                let view = Rc::new(View::new(Shell::XdgV6(shell_surface.into())));
+                let view = Arc::new(View::new(Shell::XdgV6(shell_surface.into())));
                 views.push(view.clone());
-                seat.focus_view(view, views);
+                seat.focus_view(view.clone(), views);
+                LUA.with(|lua| {
+                    let lua = lua.borrow();
+                    notify_client_add(&lua, view.clone()).expect("could not add lua client");
+                });
             }
 
             with_handles!([(cursor: {cursor})] => {
@@ -147,6 +155,10 @@ impl XdgV6ShellHandler for XdgV6 {
                          .. } = *server;
             let destroyed_shell = shell_surface.into();
             if let Some(pos) = views.iter().position(|view| view.shell == destroyed_shell) {
+                LUA.with(|lua| {
+                    let lua = lua.borrow();
+                    notify_client_remove(&lua, views[pos].clone()).expect("could not remove lua client");
+                });
                 views.remove(pos);
             }
 
