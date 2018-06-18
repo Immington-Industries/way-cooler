@@ -1,10 +1,13 @@
 //! TODO Fill in
 
-use rlua::{self, AnyUserData, Lua, MetaMethod, Table, UserData, UserDataMethods, Value};
+use rlua::{self, AnyUserData, Lua, MetaMethod, Table, ToLua, UserData, UserDataMethods, Value};
 use wlroots;
 
 use std::default::Default;
 use std::fmt::{self, Display, Formatter};
+
+use awesome::screen::{Screen, SCREENS_HANDLE};
+use awesome::object::Objectable;
 
 use compositor::Server;
 
@@ -97,7 +100,7 @@ fn set_newindex_miss(lua: &Lua, func: rlua::Function) -> rlua::Result<()> {
     table.set(NEWINDEX_MISS_FUNCTION, func)
 }
 
-fn index<'lua>(_: &'lua Lua,
+fn index<'lua>(lua: &'lua Lua,
                (mouse, index): (AnyUserData<'lua>, Value<'lua>))
                -> rlua::Result<Value<'lua>> {
     let obj_table = mouse.get_user_value::<Table>()?;
@@ -106,29 +109,35 @@ fn index<'lua>(_: &'lua Lua,
             let string = string.to_str()?;
             if string != "screen" {
                 return obj_table.get(string)
-                // TODO call miss index handler if it exists
             }
-            // TODO Might need a more robust way to get the current output...
-            // E.g they look at where the cursor is, I don't think we need to do that.
 
-            with_handles!([(compositor: {wlroots::compositor_handle().unwrap()})] => {
+            let output = with_handles!([(compositor: {wlroots::compositor_handle().unwrap()})] => {
                 let server: &mut Server = compositor.into();
-                // TODO FIXME Actually returned the "focused" output.
-                // We need to define that in the compositor.
-                server.outputs[0].clone()
-                //use super::screen::SCREENS_HANDLE;
-                //let index = outputs.iter()
-                //    .position(|output| output.focused)
-                //// NOTE Best to just lie because no one handles nil screens properly
-                //    .unwrap_or(0);
-                //let screens = lua.named_registry_value::<Vec<AnyUserData>>(SCREENS_HANDLE)?;
-                //if index < screens.len() {
-                //    return screens[index].clone().to_lua(lua)
-                //}
-                // TODO Return screen even in bad case,
-                // see how awesome does it for maximal compatibility
-                //panic!("Could not find a screen")
-            }).expect("Could not lock compositor");
+                let Server { ref mut cursor,
+                             ref mut layout,
+                             .. } = *server;
+
+                with_handles!([(cursor: {cursor}), (layout: {layout})] => {
+                    let (lx, ly) = cursor.coords();
+                    layout.output_at(lx, ly)
+                }).unwrap()
+            }).unwrap();
+
+            let mut screens: Vec<Screen> = lua.named_registry_value::<Vec<AnyUserData>>(SCREENS_HANDLE)?
+                .into_iter()
+                .map(|obj| Screen::cast(obj.into()).unwrap())
+                .collect();
+
+            if let Some(output) = output {
+                for screen in screens {
+                    let state = screen.state()?;
+                    if state.outputs.contains(&output) {
+                        return screen.to_lua(lua);
+                    }
+                }
+            }
+
+            return Value::Nil.to_lua(lua);
         }
         _ => {}
     }
