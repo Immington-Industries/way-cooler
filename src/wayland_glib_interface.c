@@ -1,8 +1,6 @@
 #include <wayland-server-core.h>
 #include <glib.h>
 
-void refresh_awesome(void);
-
 /* Instance of an event source that we use to integrate the wayland event loop
  * with GLib's MainLoop.
  */
@@ -52,8 +50,6 @@ static gboolean interface_dispatch(GSource *base, GSourceFunc callback, gpointer
 		= wl_display_get_event_loop(interface_source->display);
 
 	wl_event_loop_dispatch(event_loop, 0);
-
-  refresh_awesome();
 
 	(void) callback;
 	(void) data;

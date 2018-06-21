@@ -1,11 +1,9 @@
 //! Awesome compatibility modules
 
-use wlroots;
 
 use rlua::{self, LightUserData, Lua, Table};
 use std::{env, mem, path::PathBuf};
 use xcb::{xkb, Connection};
-use awesome::lua::setup_lua;
 
 mod awesome;
 mod button;
@@ -40,26 +38,6 @@ use compositor::Server;
 
 pub const GLOBAL_SIGNALS: &'static str = "__awesome_global_signals";
 pub const XCB_CONNECTION_HANDLE: &'static str = "__xcb_connection";
-
-/// Called from `wayland_glib_interface.c` after every call back into the wayland event loop.
-///
-/// This restarts the Lua thread if there is a new one pending
-#[no_mangle]
-pub extern "C" fn refresh_awesome() {
-    NEXT_LUA.with(|new_lua_check| {
-        if new_lua_check.get() {
-            new_lua_check.set(false);
-            LUA.with(|lua| {
-                let mut lua = lua.borrow_mut();
-                unsafe {
-                    *lua = rlua::Lua::new_with_debug();
-                }
-            });
-            let compositor = wlroots::compositor_handle().unwrap();
-            setup_lua(compositor);
-        }
-    });
-}
 
 pub fn init(lua: &Lua, server: &mut Server) -> rlua::Result<()> {
     setup_awesome_path(lua)?;

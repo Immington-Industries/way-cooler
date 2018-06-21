@@ -26,7 +26,7 @@ mod macros;
 mod awesome;
 mod compositor;
 
-pub use awesome::{refresh_awesome, lua};
+pub use awesome::lua;
 
 use std::{env, fs::File, io::{BufRead, BufReader}, os::raw::c_void, path::Path, process::exit};
 
