@@ -9,10 +9,11 @@ impl OutputManager {
 }
 
 impl OutputManagerHandler for OutputManager {
-    fn output_added<'output>(&mut self,
-                             compositor: CompositorHandle,
-                             builder: OutputBuilder<'output>)
-                             -> Option<OutputBuilderResult<'output>> {
+    fn output_added<'output>(
+        &mut self,
+        compositor: CompositorHandle,
+        builder: OutputBuilder<'output>,
+    ) -> Option<OutputBuilderResult<'output>> {
         dehandle!(
             @compositor = {compositor};
             let server: &mut ::Server = compositor.into();

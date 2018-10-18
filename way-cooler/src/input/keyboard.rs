@@ -1,6 +1,9 @@
-use wlroots::{key_events::KeyEvent, xkbcommon::xkb::{KEY_Escape, KEY_Super_L, KEY_Super_R,
-              keysym_get_name}, Capability, CompositorHandle, KeyboardHandle, KeyboardHandler,
-              KeyboardModifier, WLR_KEY_PRESSED};
+use wlroots::{
+    key_events::KeyEvent,
+    xkbcommon::xkb::{keysym_get_name, KEY_Escape, KEY_Super_L, KEY_Super_R},
+    Capability, CompositorHandle, KeyboardHandle, KeyboardHandler, KeyboardModifier,
+    WLR_KEY_PRESSED,
+};
 
 pub struct Keyboard;
 

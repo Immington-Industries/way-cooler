@@ -6,25 +6,27 @@
 
 use rlua::{self, Function, Lua, Table, ToLua, ToLuaMulti, Value};
 
-use ::GLOBAL_SIGNALS;
 use common::object::Object;
+use GLOBAL_SIGNALS;
 
 /// Connects functions to a signal. Creates a new entry in the table if it
 /// doesn't exist.
-pub fn connect_signal(lua: &Lua,
-                      obj: Object,
-                      name: String,
-                      funcs: &[Function])
-                      -> rlua::Result<()> {
+pub fn connect_signal(
+    lua: &Lua,
+    obj: Object,
+    name: String,
+    funcs: &[Function],
+) -> rlua::Result<()> {
     let signals = obj.signals()?;
     connect_signals(lua, signals, name, funcs)
 }
 
-fn connect_signals<'lua>(lua: &'lua Lua,
-                         signals: Table<'lua>,
-                         name: String,
-                         funcs: &[Function])
-                         -> rlua::Result<()> {
+fn connect_signals<'lua>(
+    lua: &'lua Lua,
+    signals: Table<'lua>,
+    name: String,
+    funcs: &[Function],
+) -> rlua::Result<()> {
     if let Ok(Value::Table(table)) = signals.get::<_, Value>(name.as_str()) {
         let mut length = table.len()? + 1;
         for func in funcs {
@@ -51,12 +53,14 @@ fn disconnect_signals(_: &Lua, signals: Table, name: String) -> rlua::Result<()>
 }
 
 /// Evaluate the functions associated with a signal.
-pub fn emit_object_signal<'lua, A>(lua: &'lua Lua,
-                                   obj: Object<'lua>,
-                                   name: String,
-                                   args: A)
-                                   -> rlua::Result<()>
-    where A: ToLuaMulti<'lua> + Clone
+pub fn emit_object_signal<'lua, A>(
+    lua: &'lua Lua,
+    obj: Object<'lua>,
+    name: String,
+    args: A,
+) -> rlua::Result<()>
+where
+    A: ToLuaMulti<'lua> + Clone,
 {
     let signals = obj.signals()?;
     let mut args = args.to_lua_multi(lua)?;
@@ -64,12 +68,14 @@ pub fn emit_object_signal<'lua, A>(lua: &'lua Lua,
     emit_signals(lua, signals, name, args)
 }
 
-fn emit_signals<'lua, A>(_: &'lua Lua,
-                         signals: Table<'lua>,
-                         name: String,
-                         args: A)
-                         -> rlua::Result<()>
-    where A: ToLuaMulti<'lua> + Clone
+fn emit_signals<'lua, A>(
+    _: &'lua Lua,
+    signals: Table<'lua>,
+    name: String,
+    args: A,
+) -> rlua::Result<()>
+where
+    A: ToLuaMulti<'lua> + Clone,
 {
     if let Ok(Value::Table(table)) = signals.get::<_, Value>(name.clone()) {
         for entry in table.pairs::<Value, Function>() {
@@ -87,9 +93,10 @@ fn emit_signals<'lua, A>(_: &'lua Lua,
 }
 
 /// Connect the function to the named signal in the global signal list.
-pub fn global_connect_signal<'lua>(lua: &'lua Lua,
-                                   (name, func): (String, rlua::Function<'lua>))
-                                   -> rlua::Result<()> {
+pub fn global_connect_signal<'lua>(
+    lua: &'lua Lua,
+    (name, func): (String, rlua::Function<'lua>),
+) -> rlua::Result<()> {
     let global_signals = lua.named_registry_value::<Table>(GLOBAL_SIGNALS)?;
     connect_signals(lua, global_signals, name, &[func])
 }

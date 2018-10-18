@@ -1,14 +1,18 @@
-use wlroots::{pointer_events::*, Capability, CompositorHandle, PointerHandle, PointerHandler,
-              WLR_BUTTON_RELEASED};
+use wlroots::{
+    pointer_events::*, Capability, CompositorHandle, PointerHandle, PointerHandler,
+    WLR_BUTTON_RELEASED,
+};
 
 #[derive(Debug, Default)]
 pub struct Pointer;
 
 impl PointerHandler for Pointer {
-    fn on_motion_absolute(&mut self,
-                          compositor: CompositorHandle,
-                          _: PointerHandle,
-                          event: &AbsoluteMotionEvent) {
+    fn on_motion_absolute(
+        &mut self,
+        compositor: CompositorHandle,
+        _: PointerHandle,
+        event: &AbsoluteMotionEvent,
+    ) {
         dehandle!(
             @compositor = {compositor};
             let server: &mut ::Server = compositor.data.downcast_mut().unwrap();

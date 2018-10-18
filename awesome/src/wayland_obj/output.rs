@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 
 use wayland_client::protocol::wl_output::WlOutput;
-use wayland_client::{Proxy, NewProxy};
+use wayland_client::{NewProxy, Proxy};
 
 thread_local! {
     pub static OUTPUTS: RefCell<Vec<Output>> = RefCell::new(Vec::new());
@@ -19,15 +19,14 @@ pub struct Output {
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
 struct OutputState {
     name: String,
-    resolution: (i32, i32)
+    resolution: (i32, i32),
 }
 
-impl <'this> Into<&'this Proxy<WlOutput>> for &'this Output {
+impl<'this> Into<&'this Proxy<WlOutput>> for &'this Output {
     fn into(self) -> &'this Proxy<WlOutput> {
         &self.proxy
     }
 }
-
 
 impl Output {
     pub fn new(new_proxy: Result<NewProxy<WlOutput>, u32>, _: ()) {
@@ -39,11 +38,11 @@ impl Output {
             match event {
                 Event::Geometry { make, model, .. } => {
                     state.name = format!("{} ({})", make, model);
-                },
+                }
                 Event::Mode { width, height, .. } => {
                     state.resolution = (width, height);
                 }
-                _ => {/* TODO */}
+                _ => { /* TODO */ }
             }
         });
         proxy.set_user_data(Box::into_raw(state) as _);
@@ -60,7 +59,9 @@ impl Output {
     }
 }
 
-fn unwrap_state_mut<'this, I: Into<&'this mut Proxy<WlOutput>>>(proxy: I) -> &'this mut OutputState {
+fn unwrap_state_mut<'this, I: Into<&'this mut Proxy<WlOutput>>>(
+    proxy: I,
+) -> &'this mut OutputState {
     unsafe {
         let user_data = proxy.into().get_user_data() as *mut OutputState;
         if user_data.is_null() {

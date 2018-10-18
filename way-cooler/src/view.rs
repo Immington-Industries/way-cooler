@@ -7,30 +7,30 @@ pub struct PendingMoveResize {
     pub update_x: bool,
     pub update_y: bool,
     pub serial: u32,
-    pub area: Area
+    pub area: Area,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct View {
     pub shell: ::Shell,
     pub origin: Cell<Origin>,
-    pub pending_move_resize: Cell<Option<PendingMoveResize>>
+    pub pending_move_resize: Cell<Option<PendingMoveResize>>,
 }
 
 impl View {
     pub fn new(shell: ::Shell) -> View {
-        View { shell: shell,
-               origin: Cell::new(Origin::default()),
-               pending_move_resize: Cell::new(None) }
+        View {
+            shell: shell,
+            origin: Cell::new(Origin::default()),
+            pending_move_resize: Cell::new(None),
+        }
     }
 
     pub fn surface(&self) -> SurfaceHandle {
         match self.shell {
-            ::Shell::XdgV6(ref xdg_surface) => {
-                with_handles!([(xdg_surface: {xdg_surface})] => {
+            ::Shell::XdgV6(ref xdg_surface) => with_handles!([(xdg_surface: {xdg_surface})] => {
                     xdg_surface.surface()
-                }).unwrap()
-            }
+                }).unwrap(),
         }
     }
 
@@ -52,23 +52,25 @@ impl View {
 
     pub fn get_size(&self) -> Size {
         match self.shell {
-            ::Shell::XdgV6(ref xdg_surface) => {
-                with_handles!([(xdg_surface: {xdg_surface})] => {
+            ::Shell::XdgV6(ref xdg_surface) => with_handles!([(xdg_surface: {xdg_surface})] => {
                     let Area { origin: _, size } = xdg_surface.geometry();
                     size
-                }).unwrap()
-            }
+                }).unwrap(),
         }
     }
 
     pub fn move_resize(&self, area: Area) {
-        let Area { origin: Origin { x, y },
-                   size: Size { width, height } } = area;
+        let Area {
+            origin: Origin { x, y },
+            size: Size { width, height },
+        } = area;
         let width = width as u32;
         let height = height as u32;
 
-        let Origin { x: view_x,
-                     y: view_y } = self.origin.get();
+        let Origin {
+            x: view_x,
+            y: view_y,
+        } = self.origin.get();
 
         let update_x = x != view_x;
         let update_y = y != view_y;
@@ -92,10 +94,12 @@ impl View {
             // size didn't change
             self.origin.set(Origin { x, y });
         } else {
-            self.pending_move_resize.set(Some(PendingMoveResize { update_x,
-                                              update_y,
-                                              area,
-                                              serial }));
+            self.pending_move_resize.set(Some(PendingMoveResize {
+                update_x,
+                update_y,
+                area,
+                serial,
+            }));
         }
     }
 

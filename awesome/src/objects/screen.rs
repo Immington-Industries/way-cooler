@@ -6,13 +6,14 @@
 use std::default::Default;
 use std::fmt::{self, Display, Formatter};
 
-use rlua::{self, AnyUserData, Lua, MetaMethod, Table, ToLua, UserData,
-           UserDataMethods, Value};
+use rlua::{self, AnyUserData, Lua, MetaMethod, Table, ToLua, UserData, UserDataMethods, Value};
 use wlroots::{Area, Origin, OutputHandle, Size};
 
-use common::{class::{self, Class, ClassBuilder},
-             object::{self, Object, Objectable},
-             property::Property};
+use common::{
+    class::{self, Class, ClassBuilder},
+    object::{self, Object, Objectable},
+    property::Property,
+};
 use wayland_obj::Output;
 
 pub const SCREENS_HANDLE: &'static str = "__screens";
@@ -31,7 +32,7 @@ pub struct ScreenState {
     // The screen outputs information
     pub outputs: Vec<Output>,
     // Some XID identifying this screen
-    pub xid: u32
+    pub xid: u32,
 }
 
 unsafe impl Send for ScreenState {}
@@ -46,11 +47,11 @@ impl Display for ScreenState {
 
 impl PartialEq for ScreenState {
     fn eq(&self, other: &ScreenState) -> bool {
-        self.valid == other.valid &&
-            self.geometry == other.geometry &&
-            self.workarea == other.workarea &&
-            self.xid == other.xid &&
-            self.outputs == other.outputs
+        self.valid == other.valid
+            && self.geometry == other.geometry
+            && self.workarea == other.workarea
+            && self.xid == other.xid
+            && self.outputs == other.outputs
     }
 }
 
@@ -64,11 +65,13 @@ impl<'lua> ToLua<'lua> for Screen<'lua> {
 
 impl Default for ScreenState {
     fn default() -> Self {
-        ScreenState { valid: true,
-                      geometry: Area::default(),
-                      workarea: Area::default(),
-                      outputs: vec![],
-                      xid: 0 }
+        ScreenState {
+            valid: true,
+            geometry: Area::default(),
+            workarea: Area::default(),
+            outputs: vec![],
+            xid: 0,
+        }
     }
 }
 
@@ -85,10 +88,7 @@ impl<'lua> Screen<'lua> {
         Ok(Screen::allocate(lua, class)?.build())
     }
 
-    fn init_screens(&mut self,
-                    output: Output,
-                    outputs: Vec<Output>)
-                    -> rlua::Result<()> {
+    fn init_screens(&mut self, output: Output, outputs: Vec<Output>) -> rlua::Result<()> {
         let mut state = self.get_object_mut()?;
         let (width, height) = output.resolution();
         let resolution = Size { width, height };
@@ -125,8 +125,9 @@ impl<'lua> Screen<'lua> {
 
 pub fn init<'lua>(lua: &'lua Lua) -> rlua::Result<Class<'lua>> {
     let builder = Class::builder(lua, "screen", None)?;
-    let res = property_setup(lua, method_setup(lua, builder)?)?.save_class("screen")?
-                                                               .build()?;
+    let res = property_setup(lua, method_setup(lua, builder)?)?
+        .save_class("screen")?
+        .build()?;
     let screens: &mut Vec<Screen> = &mut vec![];
     // TODO Get the list of outputs from Way Cooler
     //for output in server.outputs.iter() {
@@ -151,28 +152,35 @@ pub fn init<'lua>(lua: &'lua Lua) -> rlua::Result<Class<'lua>> {
     Ok(res)
 }
 
-fn method_setup<'lua>(lua: &'lua Lua,
-                      builder: ClassBuilder<'lua>)
-                      -> rlua::Result<ClassBuilder<'lua>> {
+fn method_setup<'lua>(
+    lua: &'lua Lua,
+    builder: ClassBuilder<'lua>,
+) -> rlua::Result<ClassBuilder<'lua>> {
     // TODO Do properly
     use super::dummy;
-    builder.method("connect_signal".into(), lua.create_function(dummy)?)?
-           .method("count".into(), lua.create_function(count)?)?
-           .method("__call".into(), lua.create_function(iterate_over_screens)?)?
-           .method("__index".into(), lua.create_function(index)?)
+    builder
+        .method("connect_signal".into(), lua.create_function(dummy)?)?
+        .method("count".into(), lua.create_function(count)?)?
+        .method("__call".into(), lua.create_function(iterate_over_screens)?)?
+        .method("__index".into(), lua.create_function(index)?)
 }
 
-fn property_setup<'lua>(lua: &'lua Lua,
-                        builder: ClassBuilder<'lua>)
-                        -> rlua::Result<ClassBuilder<'lua>> {
-    builder.property(Property::new("geometry".into(),
-                                   None,
-                                   Some(lua.create_function(get_geometry)?),
-                                   None))?
-           .property(Property::new("workarea".into(),
-                                   None,
-                                   Some(lua.create_function(get_workarea)?),
-                                   None))
+fn property_setup<'lua>(
+    lua: &'lua Lua,
+    builder: ClassBuilder<'lua>,
+) -> rlua::Result<ClassBuilder<'lua>> {
+    builder
+        .property(Property::new(
+            "geometry".into(),
+            None,
+            Some(lua.create_function(get_geometry)?),
+            None,
+        ))?.property(Property::new(
+            "workarea".into(),
+            None,
+            Some(lua.create_function(get_workarea)?),
+            None,
+        ))
 }
 
 fn get_geometry<'lua>(lua: &'lua Lua, object: AnyUserData<'lua>) -> rlua::Result<Table<'lua>> {
@@ -197,25 +205,29 @@ fn count<'lua>(lua: &'lua Lua, _: ()) -> rlua::Result<Value<'lua>> {
 /// To ensure we loop over everything, we take the index of that value in our
 /// list, increment it by 1 (starting at 0 if it's the start) and then once it
 /// falls outside the bounds it will stop by returning nil.
-fn iterate_over_screens<'lua>(lua: &'lua Lua,
-                              (_, prev): (Value<'lua>, Value<'lua>))
-                              -> rlua::Result<Value<'lua>> {
-    let mut screens: Vec<Screen> = lua.named_registry_value::<Vec<AnyUserData>>(SCREENS_HANDLE)?
-                                      .into_iter()
-                                      .map(|obj| Screen::cast(obj.into()).unwrap())
-                                      .collect();
+fn iterate_over_screens<'lua>(
+    lua: &'lua Lua,
+    (_, prev): (Value<'lua>, Value<'lua>),
+) -> rlua::Result<Value<'lua>> {
+    let mut screens: Vec<Screen> = lua
+        .named_registry_value::<Vec<AnyUserData>>(SCREENS_HANDLE)?
+        .into_iter()
+        .map(|obj| Screen::cast(obj.into()).unwrap())
+        .collect();
     let index = match prev {
         Value::Nil => 0,
         Value::UserData(ref object) => {
             if let Ok(screen) = Screen::cast(object.clone().into()) {
-                screens.iter()
-                       .position(|t| *t.state().unwrap() == *screen.state().unwrap())
-                       .unwrap_or(screens.len()) + 1
+                screens
+                    .iter()
+                    .position(|t| *t.state().unwrap() == *screen.state().unwrap())
+                    .unwrap_or(screens.len())
+                    + 1
             } else {
                 panic!("Unexpected non-screen table in loop");
             }
         }
-        _ => panic!("Unexpected non-screen or nil value in screens loop")
+        _ => panic!("Unexpected non-screen or nil value in screens loop"),
     };
     if index < screens.len() {
         screens.remove(index).to_lua(lua)
@@ -224,28 +236,30 @@ fn iterate_over_screens<'lua>(lua: &'lua Lua,
     }
 }
 
-fn index<'lua>(lua: &'lua Lua,
-               (data, index): (AnyUserData<'lua>, Value<'lua>))
-               -> rlua::Result<Value<'lua>> {
+fn index<'lua>(
+    lua: &'lua Lua,
+    (data, index): (AnyUserData<'lua>, Value<'lua>),
+) -> rlua::Result<Value<'lua>> {
     let obj: Object = data.clone().into();
-    let screens: Vec<Screen> = lua.named_registry_value::<Vec<AnyUserData>>(SCREENS_HANDLE)?
-                                  .into_iter()
-                                  .map(|obj| Screen::cast(obj.into()).unwrap())
-                                  .collect();
+    let screens: Vec<Screen> = lua
+        .named_registry_value::<Vec<AnyUserData>>(SCREENS_HANDLE)?
+        .into_iter()
+        .map(|obj| Screen::cast(obj.into()).unwrap())
+        .collect();
     match index {
         Value::String(ref string) => {
             let string = string.to_str()?;
             if string == "primary" {
                 // TODO Emit primary changed signal
                 if screens.len() > 0 {
-                    return screens[0].clone().to_lua(lua)
+                    return screens[0].clone().to_lua(lua);
                 }
             }
             for screen in screens.iter() {
                 let mut screen_state = screen.state()?;
                 for output in &screen_state.outputs {
                     if output.name() == string {
-                        return screen.clone().to_lua(lua)
+                        return screen.clone().to_lua(lua);
                     }
                 }
             }
@@ -253,18 +267,20 @@ fn index<'lua>(lua: &'lua Lua,
         // TODO Might need to do Number instead
         Value::Integer(screen_index) => {
             if screen_index < 1 || screen_index as usize > screens.len() {
-                return Err(rlua::Error::RuntimeError(format!("invalid screen \
-                                                              number: {} (of {} \
-                                                              existing)",
-                                                             screen_index,
-                                                             screens.len())))
+                return Err(rlua::Error::RuntimeError(format!(
+                    "invalid screen \
+                     number: {} (of {} \
+                     existing)",
+                    screen_index,
+                    screens.len()
+                )));
             }
-            return screens[(screen_index - 1) as usize].clone().to_lua(lua)
+            return screens[(screen_index - 1) as usize].clone().to_lua(lua);
         }
         Value::UserData(ref obj) => {
             // If this is a screen, just return it
             if let Ok(screen) = Screen::cast(obj.clone().into()) {
-                return screen.to_lua(lua)
+                return screen.to_lua(lua);
             }
         }
         // TODO This checke user data like in luaA_toudata in awesome
@@ -275,6 +291,6 @@ fn index<'lua>(lua: &'lua Lua,
     let meta = table.get_metatable().expect("screen had no metatable");
     match meta.get(index.clone()) {
         Err(_) | Ok(Value::Nil) => object::default_index(lua, (data, index)),
-        Ok(value) => Ok(value)
+        Ok(value) => Ok(value),
     }
 }

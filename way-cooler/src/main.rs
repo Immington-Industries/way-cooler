@@ -30,12 +30,20 @@ pub use self::shells::*;
 pub use self::view::*;
 pub use self::xwayland::*;
 
-use wlroots::{Compositor, CompositorBuilder, Cursor, CursorHandle, KeyboardHandle,
-              OutputHandle, OutputLayout, OutputLayoutHandle, PointerHandle, XCursorManager};
+use wlroots::{
+    Compositor, CompositorBuilder, Cursor, CursorHandle, KeyboardHandle, OutputHandle,
+    OutputLayout, OutputLayoutHandle, PointerHandle, XCursorManager,
+};
 
 use std::rc::Rc;
 
-use std::{env, fs::File, io::{BufRead, BufReader}, path::Path, process::exit};
+use std::{
+    env,
+    fs::File,
+    io::{BufRead, BufReader},
+    path::Path,
+    process::exit,
+};
 
 use log::LogLevel;
 use nix::sys::signal::{self, SaFlags, SigAction, SigHandler, SigSet};
@@ -54,39 +62,46 @@ pub struct Server {
     pub keyboards: Vec<KeyboardHandle>,
     pub pointers: Vec<PointerHandle>,
     pub outputs: Vec<OutputHandle>,
-    pub views: Vec<Rc<View>>
+    pub views: Vec<Rc<View>>,
 }
 
 impl Default for Server {
     fn default() -> Server {
-        let xcursor_manager =
-            XCursorManager::create("default".to_string(), 24).expect("Could not create xcursor \
-                                                                      manager");
+        let xcursor_manager = XCursorManager::create("default".to_string(), 24).expect(
+            "Could not create xcursor \
+             manager",
+        );
         xcursor_manager.load(1.0);
-        Server { xcursor_manager,
-                 layout: OutputLayoutHandle::default(),
-                 seat: Seat::default(),
-                 cursor: CursorHandle::default(),
-                 keyboards: Vec::default(),
-                 pointers: Vec::default(),
-                 outputs: Vec::default(),
-                 views: Vec::default() }
+        Server {
+            xcursor_manager,
+            layout: OutputLayoutHandle::default(),
+            seat: Seat::default(),
+            cursor: CursorHandle::default(),
+            keyboards: Vec::default(),
+            pointers: Vec::default(),
+            outputs: Vec::default(),
+            views: Vec::default(),
+        }
     }
 }
 
 impl Server {
     pub fn new(layout: OutputLayoutHandle, cursor: CursorHandle) -> Self {
-        let mut xcursor_manager =
-            XCursorManager::create("default".to_string(), 24).expect("Could not create xcursor \
-                                                                      manager");
+        let mut xcursor_manager = XCursorManager::create("default".to_string(), 24).expect(
+            "Could not create xcursor \
+             manager",
+        );
         xcursor_manager.load(1.0);
-        cursor.run(|c| xcursor_manager.set_cursor_image("left_ptr".to_string(), c))
-              .unwrap();
+        cursor
+            .run(|c| xcursor_manager.set_cursor_image("left_ptr".to_string(), c))
+            .unwrap();
 
-        Server { xcursor_manager,
-                 layout,
-                 cursor,
-                 ..Server::default() }
+        Server {
+            xcursor_manager,
+            layout,
+            cursor,
+            ..Server::default()
+        }
     }
 }
 
@@ -108,13 +123,15 @@ fn main() {
         } else {
             println!("Way Cooler {}", VERSION);
         }
-        return
+        return;
     }
     println!("Launching way-cooler...");
 
-    let sig_action = SigAction::new(SigHandler::Handler(sig_handle),
-                                    SaFlags::empty(),
-                                    SigSet::empty());
+    let sig_action = SigAction::new(
+        SigHandler::Handler(sig_handle),
+        SaFlags::empty(),
+        SigSet::empty(),
+    );
     unsafe {
         signal::sigaction(signal::SIGINT, &sig_action).expect("Could not set SIGINT catcher");
     }
@@ -132,18 +149,21 @@ fn main() {
 pub fn setup_compositor() -> Compositor {
     let layout = OutputLayout::create(Box::new(OutputLayoutManager::new()));
     let cursor = Cursor::create(Box::new(CursorManager::new()));
-    let mut compositor = CompositorBuilder::new().gles2(true)
-                                                 .data_device(true)
-                                                 .output_manager(Box::new(OutputManager::new()))
-                                                 .input_manager(Box::new(InputManager::new()))
-                                                 .xwayland(Box::new(XWaylandManager::new()))
-                                                 .xdg_shell_v6_manager(Box::new(XdgV6ShellManager))
-                                                 .build_auto(Server::new(layout, cursor));
+    let mut compositor = CompositorBuilder::new()
+        .gles2(true)
+        .data_device(true)
+        .output_manager(Box::new(OutputManager::new()))
+        .input_manager(Box::new(InputManager::new()))
+        .xwayland(Box::new(XWaylandManager::new()))
+        .xdg_shell_v6_manager(Box::new(XdgV6ShellManager))
+        .build_auto(Server::new(layout, cursor));
     // NOTE We need to create this afterwards because it needs the compositor
     // running to announce the seat.
-    let seat = wlroots::Seat::create(&mut compositor,
-                                     "seat0".into(),
-                                     Box::new(SeatManager::new()));
+    let seat = wlroots::Seat::create(
+        &mut compositor,
+        "seat0".into(),
+        Box::new(SeatManager::new()),
+    );
     {
         let server: &mut Server = (&mut compositor).into();
         server.seat = Seat::new(seat);
@@ -158,7 +178,7 @@ fn log_format(record: &log::LogRecord) -> String {
         LogLevel::Trace => "\x1B[37m",
         LogLevel::Debug => "\x1B[44m",
         LogLevel::Warn => "\x1B[33m",
-        LogLevel::Error => "\x1B[31m"
+        LogLevel::Error => "\x1B[31m",
     };
     let location = record.location();
     let file = location.file();
@@ -168,13 +188,15 @@ fn log_format(record: &log::LogRecord) -> String {
         let index = index + "way_cooler::".len();
         module_path = &module_path[index..];
     }
-    format!("{} {} [{}] \x1B[37m{}:{}\x1B[0m{0} {} \x1B[0m",
-            color,
-            record.level(),
-            module_path,
-            file,
-            line,
-            record.args())
+    format!(
+        "{} {} [{}] \x1B[37m{}:{}\x1B[0m{0} {} \x1B[0m",
+        color,
+        record.level(),
+        module_path,
+        file,
+        line,
+        record.args()
+    )
 }
 
 /// Ensures that the environment is set up correctly. E.g:
@@ -184,8 +206,10 @@ fn ensure_good_env() {
     match env::var("XDG_RUNTIME_DIR") {
         Ok(_) => { /* Do nothing, logged in `log_environment` */ }
         Err(VarError::NotUnicode(string)) => {
-            error!("The value set for XDG_RUNTIME_DIR ({:?}) is not valid unicode!",
-                   string);
+            error!(
+                "The value set for XDG_RUNTIME_DIR ({:?}) is not valid unicode!",
+                string
+            );
             exit(1);
         }
         Err(VarError::NotPresent) => {
@@ -200,7 +224,7 @@ fn ensure_good_env() {
 fn detect_proprietary() {
     // If DISPLAY is present, we are running embedded
     if env::var("DISPLAY").is_ok() {
-        return
+        return;
     }
     match File::open(Path::new(DRIVER_MOD_PATH)) {
         Ok(file) => {
@@ -208,19 +232,25 @@ fn detect_proprietary() {
             for line in reader.lines() {
                 if let Ok(line) = line {
                     if line.contains("nvidia") {
-                        error!("Error: Proprietary nvidia graphics drivers are installed, but \
-                                they are not compatible with Wayland. Consider using nouveau \
-                                drivers for Wayland.");
+                        error!(
+                            "Error: Proprietary nvidia graphics drivers are installed, but \
+                             they are not compatible with Wayland. Consider using nouveau \
+                             drivers for Wayland."
+                        );
                         exit(1);
                     }
                 }
             }
         }
         Err(err) => {
-            warn!("Could not read proprietary modules at \"{}\", because: {:#?}",
-                  DRIVER_MOD_PATH, err);
-            warn!("If you are running proprietary Nvidia graphics drivers, Way Cooler will not \
-                   work for you");
+            warn!(
+                "Could not read proprietary modules at \"{}\", because: {:#?}",
+                DRIVER_MOD_PATH, err
+            );
+            warn!(
+                "If you are running proprietary Nvidia graphics drivers, Way Cooler will not \
+                 work for you"
+            );
         }
     }
 }
@@ -236,13 +266,13 @@ fn detect_raspi() {
                 if let Ok(line) = line {
                     if line.contains("Raspberry Pi") {
                         raspi = true;
-                        break
+                        break;
                     }
                 }
             }
             raspi
         }
-        Err(_) => return
+        Err(_) => return,
     };
     let vc4 = match File::open(Path::new(DRIVER_MOD_PATH)) {
         Ok(f) => {
@@ -252,16 +282,18 @@ fn detect_raspi() {
                 if let Ok(line) = line {
                     if line.contains("vc4") {
                         vc4 = true;
-                        break
+                        break;
                     }
                 }
             }
             vc4
         }
         Err(err) => {
-            warn!("Could not read file \"{}\", because {:#?}",
-                  DRIVER_MOD_PATH, err);
-            return
+            warn!(
+                "Could not read file \"{}\", because {:#?}",
+                DRIVER_MOD_PATH, err
+            );
+            return;
         }
     };
     if !vc4 && raspi {

@@ -16,7 +16,8 @@ fn dump_git_version() {
     let dest_path = Path::new(&out_dir).join("git-version.txt");
     let mut f = fs::File::create(&dest_path).expect("Could not write git version to out directory");
     if let Some(git_version) = git_version() {
-        f.write_all(git_version.as_ref()).expect("Could not write to git version file");
+        f.write_all(git_version.as_ref())
+            .expect("Could not write to git version file");
     }
 }
 
@@ -24,12 +25,13 @@ fn dump_git_version() {
 /// that could not be retrieved (e.g not in a git repository)
 fn git_version() -> Option<String> {
     if !in_release_commit() {
-        Command::new("git").arg("rev-parse")
-                           .arg("HEAD")
-                           .output()
-                           .ok()
-                           .map(|output| output.stdout)
-                           .map(|hash| String::from_utf8_lossy(&hash).trim().into())
+        Command::new("git")
+            .arg("rev-parse")
+            .arg("HEAD")
+            .output()
+            .ok()
+            .map(|output| output.stdout)
+            .map(|hash| String::from_utf8_lossy(&hash).trim().into())
     } else {
         None
     }
@@ -37,12 +39,13 @@ fn git_version() -> Option<String> {
 
 /// Determines if the current HEAD is tagged with a release
 fn in_release_commit() -> bool {
-    let result = Command::new("git").arg("describe")
-                                    .arg("--exact-match")
-                                    .arg("--tags")
-                                    .arg("HEAD")
-                                    .output()
-                                    .unwrap();
+    let result = Command::new("git")
+        .arg("describe")
+        .arg("--exact-match")
+        .arg("--tags")
+        .arg("HEAD")
+        .output()
+        .unwrap();
     result.status.success()
 }
 
@@ -55,6 +58,7 @@ fn build_wayland_glib_interface() {
         builder.include(i);
     }
 
-    builder.file("src/wayland_glib_interface.c")
-           .compile("wayland_glib_interface");
+    builder
+        .file("src/wayland_glib_interface.c")
+        .compile("wayland_glib_interface");
 }

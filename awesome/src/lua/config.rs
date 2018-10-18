@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 use rlua::{self, Lua, Table};
 
-
 const INIT_FILE: &'static str = "rc.lua";
 const INIT_FILE_FALLBACK_PATH: &'static str = "/etc/way-cooler/";
 
@@ -26,41 +25,44 @@ pub fn load_config(mut lua: &mut Lua) {
             if init_dir.components().next().is_some() {
                 // Add the config directory to the package path.
                 let globals = lua.globals();
-                let package: Table = globals.get("package")
-                    .expect("package not defined in Lua");
-                let paths: String = package.get("path")
+                let package: Table = globals.get("package").expect("package not defined in Lua");
+                let paths: String = package
+                    .get("path")
                     .expect("package.path not defined in Lua");
-                package.set("path",
-                            paths + ";"
-                            + init_dir.join("?.lua")
+                package
+                    .set(
+                        "path",
+                        paths + ";" + init_dir
+                            .join("?.lua")
                             .to_str()
-                            .expect("init_dir not a valid UTF-8 string"))
-                    .expect("Failed to set package.path");
+                            .expect("init_dir not a valid UTF-8 string"),
+                    ).expect("Failed to set package.path");
             }
             let mut init_contents = String::new();
-            init_file.read_to_string(&mut init_contents)
+            init_file
+                .read_to_string(&mut init_contents)
                 .expect("Could not read contents");
             lua.exec(init_contents.as_str(), Some("init.lua".into()))
-                .map(|_:()| info!("Read init.lua successfully"))
+                .map(|_: ()| info!("Read init.lua successfully"))
                 .or_else(|err| {
                     log_error(err);
                     info!("Defaulting to pre-compiled init.lua");
-                    unsafe { *lua = Lua::new_with_debug(); }
+                    unsafe {
+                        *lua = Lua::new_with_debug();
+                    }
                     ::lua::register_libraries(&mut lua)?;
-                    lua.exec(DEFAULT_CONFIG,
-                             Some("init.lua <DEFAULT>".into()))
-                })
-                .expect("Unable to load pre-compiled init file");
+                    lua.exec(DEFAULT_CONFIG, Some("init.lua <DEFAULT>".into()))
+                }).expect("Unable to load pre-compiled init file");
         }
         None => {
             warn!("Could not find an init file in any path!");
             warn!("Defaulting to pre-compiled init.lua");
-            let _: () = lua.exec(DEFAULT_CONFIG, Some("init.lua <DEFAULT>".into()))
+            let _: () = lua
+                .exec(DEFAULT_CONFIG, Some("init.lua <DEFAULT>".into()))
                 .or_else(|err| {
                     log_error(err.clone());
                     Err(err)
-                })
-                .expect("Unable to load pre-compiled init file");
+                }).expect("Unable to load pre-compiled init file");
         }
     }
     ::lua::emit_refresh(lua);
@@ -70,11 +72,12 @@ fn get_config() -> Option<(PathBuf, File)> {
     let home_var = env::var("HOME").expect("HOME environment variable not defined!");
     let home = home_var.as_str();
 
-    let mut paths: [Option<PathBuf>; 4] = [None,
-                                           None,
-                                           Some(Path::new(home).join(".config")
-                                                               .join("way-cooler")),
-                                           Some(INIT_FILE_FALLBACK_PATH.into())];
+    let mut paths: [Option<PathBuf>; 4] = [
+        None,
+        None,
+        Some(Path::new(home).join(".config").join("way-cooler")),
+        Some(INIT_FILE_FALLBACK_PATH.into()),
+    ];
 
     if let Ok(path) = env::var("WAY_COOLER_INIT_FILE").map(|path| PathBuf::from(path)) {
         let path = path.parent().map_or(PathBuf::new(), Path::to_path_buf);
@@ -88,34 +91,40 @@ fn get_config() -> Option<(PathBuf, File)> {
     for path in paths.iter_mut() {
         let (original_path, path) = match path.take() {
             Some(path) => (path.clone(), path.join(INIT_FILE)),
-            None => continue
+            None => continue,
         };
         if let Ok(file) = OpenOptions::new().read(true).open(path.clone()) {
             info!("Found init file @ {:?}", path);
-            return Some((original_path, file))
+            return Some((original_path, file));
         }
     }
-    return None
+    return None;
 }
 
 fn log_error(err: rlua::Error) {
     fn recursive_callback_print(error: Arc<rlua::Error>) {
         match *error {
-            rlua::Error::CallbackError {traceback: ref err, ref cause } => {
+            rlua::Error::CallbackError {
+                traceback: ref err,
+                ref cause,
+            } => {
                 error!("{}", err);
                 recursive_callback_print(cause.clone())
-            },
-            ref err => error!("{:?}", err)
+            }
+            ref err => error!("{:?}", err),
         }
     }
     match err {
         rlua::Error::RuntimeError(ref err) => {
             error!("{}", err);
         }
-        rlua::Error::CallbackError{traceback: ref err, ref cause } => {
+        rlua::Error::CallbackError {
+            traceback: ref err,
+            ref cause,
+        } => {
             error!("traceback: {}", err);
             recursive_callback_print(cause.clone());
-        },
+        }
         err => {
             error!("init file error: {:?}", err);
         }

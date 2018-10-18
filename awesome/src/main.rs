@@ -4,8 +4,8 @@ extern crate cairo;
 extern crate cairo_sys;
 extern crate env_logger;
 extern crate exec;
-extern crate getopts;
 extern crate gdk_pixbuf;
+extern crate getopts;
 extern crate glib;
 #[macro_use]
 extern crate lazy_static;
@@ -19,38 +19,40 @@ extern crate wayland_client;
 
 // TODO remove
 extern crate wlroots;
-use wlroots::{KeyboardModifier, key_events::KeyEvent, wlr_key_state::*};
+use wlroots::{key_events::KeyEvent, wlr_key_state::*, KeyboardModifier};
 
 #[macro_use]
 mod macros;
 
-mod objects;
 mod common;
+mod objects;
 mod wayland_obj;
 
 mod awesome;
 mod keygrabber;
+mod lua;
 mod mousegrabber;
 mod root;
-mod lua;
 
 use std::{env, mem, path::PathBuf, process::exit};
 
 use exec::Command;
-use lua::setup_lua;
-use rlua::{LightUserData, Lua, Table};
 use log::LogLevel;
+use lua::setup_lua;
 use nix::sys::signal::{self, SaFlags, SigAction, SigHandler, SigSet};
-use xcb::{xkb, Connection};
-use wayland_client::{Display, GlobalManager};
-use wayland_client::protocol::{wl_output, wl_display::RequestsTrait};
+use rlua::{LightUserData, Lua, Table};
+use wayland_client::protocol::{wl_display::RequestsTrait, wl_output};
 use wayland_client::sys::client::wl_display;
+use wayland_client::{Display, GlobalManager};
+use xcb::{xkb, Connection};
 
 use self::lua::{LUA, NEXT_LUA};
 
-
+use self::common::{
+    object::{Object, Objectable},
+    signal::*,
+};
 use self::objects::key::Key;
-use self::common::{object::{Object, Objectable}, signal::*};
 use self::root::ROOT_KEYS_HANDLE;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -69,9 +71,7 @@ pub extern "C" fn refresh_awesome() {
             new_lua_check.set(false);
             let awesome = env::args().next().unwrap();
             let args: Vec<_> = env::args().skip(1).collect();
-            let err = Command::new(awesome)
-                .args(args.as_slice())
-                .exec();
+            let err = Command::new(awesome).args(args.as_slice()).exec();
             error!("error: {:?}", err);
             panic!("Could not restart Awesome");
         }
@@ -94,12 +94,14 @@ fn main() {
         } else {
             println!("Way Cooler {}", VERSION);
         }
-        return
+        return;
     }
     init_logs();
-    let sig_action = SigAction::new(SigHandler::Handler(sig_handle),
-                                    SaFlags::empty(),
-                                    SigSet::empty());
+    let sig_action = SigAction::new(
+        SigHandler::Handler(sig_handle),
+        SaFlags::empty(),
+        SigSet::empty(),
+    );
     unsafe {
         signal::sigaction(signal::SIGINT, &sig_action).expect("Could not set SIGINT catcher");
     }
@@ -125,9 +127,7 @@ fn init_wayland() {
     }
     let _globals = GlobalManager::new_with_cb(
         display.get_registry().unwrap(),
-        global_filter!(
-            [wl_output::WlOutput, 2, wayland_obj::Output::new]
-        ),
+        global_filter!([wl_output::WlOutput, 2, wayland_obj::Output::new]),
     );
     // TODO Remove
     event_queue.sync_roundtrip().unwrap();
@@ -141,24 +141,32 @@ fn setup_awesome_path(lua: &Lua) -> rlua::Result<()> {
     let mut path = package.get::<_, String>("path")?;
     let mut cpath = package.get::<_, String>("cpath")?;
 
-    for mut xdg_data_path in
-        env::var("XDG_DATA_DIRS").unwrap_or("/usr/local/share:/usr/share".into())
-                                 .split(':')
-                                 .map(PathBuf::from)
+    for mut xdg_data_path in env::var("XDG_DATA_DIRS")
+        .unwrap_or("/usr/local/share:/usr/share".into())
+        .split(':')
+        .map(PathBuf::from)
     {
         xdg_data_path.push("awesome/lib");
-        path.push_str(&format!(";{0}/?.lua;{0}/?/init.lua",
-                               xdg_data_path.as_os_str().to_string_lossy()));
-        cpath.push_str(&format!(";{}/?.so", xdg_data_path.into_os_string().to_string_lossy()));
+        path.push_str(&format!(
+            ";{0}/?.lua;{0}/?/init.lua",
+            xdg_data_path.as_os_str().to_string_lossy()
+        ));
+        cpath.push_str(&format!(
+            ";{}/?.so",
+            xdg_data_path.into_os_string().to_string_lossy()
+        ));
     }
 
-    for mut xdg_config_path in env::var("XDG_CONFIG_DIRS").unwrap_or("/etc/xdg".into())
-                                                          .split(':')
-                                                          .map(PathBuf::from)
+    for mut xdg_config_path in env::var("XDG_CONFIG_DIRS")
+        .unwrap_or("/etc/xdg".into())
+        .split(':')
+        .map(PathBuf::from)
     {
         xdg_config_path.push("awesome");
-        cpath.push_str(&format!(";{}/?.so",
-                                xdg_config_path.into_os_string().to_string_lossy()));
+        cpath.push_str(&format!(
+            ";{}/?.so",
+            xdg_config_path.into_os_string().to_string_lossy()
+        ));
     }
 
     package.set("path", path)?;
@@ -183,7 +191,7 @@ fn setup_xcb_connection(lua: &Lua) -> rlua::Result<()> {
             error!("{:?}", err);
             panic!("Could not connect to XWayland instance");
         }
-        Ok(con) => con.0
+        Ok(con) => con.0,
     };
     // Tell xcb we are using the xkb extension
     match xkb::use_extension(&con, 1, 0).get_reply() {
@@ -196,17 +204,20 @@ fn setup_xcb_connection(lua: &Lua) -> rlua::Result<()> {
             panic!("Could not get xkb extension supported version {:?}", err);
         }
     }
-    lua.set_named_registry_value(XCB_CONNECTION_HANDLE,
-                                  LightUserData(con.get_raw_conn() as _))?;
+    lua.set_named_registry_value(
+        XCB_CONNECTION_HANDLE,
+        LightUserData(con.get_raw_conn() as _),
+    )?;
     mem::forget(con);
     Ok(())
 }
 
 /// Emits the Awesome keybindinsg.
-fn emit_awesome_keybindings(lua: &Lua,
-                            event: &KeyEvent,
-                            event_modifiers: KeyboardModifier)
-                            -> rlua::Result<()> {
+fn emit_awesome_keybindings(
+    lua: &Lua,
+    event: &KeyEvent,
+    event_modifiers: KeyboardModifier,
+) -> rlua::Result<()> {
     let state_string = if event.key_state() == WLR_KEY_PRESSED {
         "press"
     } else {
@@ -223,9 +234,9 @@ fn emit_awesome_keybindings(lua: &Lua,
             let keysym = key.keysym()?;
             let modifiers = key.modifiers()?;
             let binding_match = (keysym != 0 && keysym == event_keysym
-                                 || keycode != 0 && keycode == event.keycode())
-                                && modifiers == 0
-                                || modifiers == event_modifiers.bits();
+                || keycode != 0 && keycode == event.keycode())
+                && modifiers == 0
+                || modifiers == event_modifiers.bits();
             if binding_match {
                 emit_object_signal(&*lua, obj, state_string.into(), event_keysym)?;
             }
@@ -241,7 +252,7 @@ fn log_format(record: &log::LogRecord) -> String {
         LogLevel::Trace => "\x1B[37m",
         LogLevel::Debug => "\x1B[44m",
         LogLevel::Warn => "\x1B[33m",
-        LogLevel::Error => "\x1B[31m"
+        LogLevel::Error => "\x1B[31m",
     };
     let location = record.location();
     let file = location.file();
@@ -251,13 +262,15 @@ fn log_format(record: &log::LogRecord) -> String {
         let index = index + "way_cooler::".len();
         module_path = &module_path[index..];
     }
-    format!("{} {} [{}] \x1B[37m{}:{}\x1B[0m{0} {} \x1B[0m",
-            color,
-            record.level(),
-            module_path,
-            file,
-            line,
-            record.args())
+    format!(
+        "{} {} [{}] \x1B[37m{}:{}\x1B[0m{0} {} \x1B[0m",
+        color,
+        record.level(),
+        module_path,
+        file,
+        line,
+        record.args()
+    )
 }
 
 fn init_logs() {

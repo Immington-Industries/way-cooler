@@ -9,8 +9,8 @@ pub use self::utils::*;
 use glib::MainLoop;
 use rlua::{self, AnyUserData, Lua, Table, Value};
 
-use std::cell::RefCell;
 use std::cell::Cell;
+use std::cell::RefCell;
 
 use common::signal;
 
@@ -31,8 +31,7 @@ thread_local! {
 /// Sets up the Lua environment before running the compositor.
 pub fn setup_lua() {
     LUA.with(|lua| {
-        register_libraries(&*lua.borrow())
-            .expect("Could not register lua libraries");
+        register_libraries(&*lua.borrow()).expect("Could not register lua libraries");
         info!("Initializing lua...");
         load_config(&mut *lua.borrow_mut());
     });
@@ -69,7 +68,7 @@ pub fn register_libraries(lua: &Lua) -> rlua::Result<()> {
 }
 
 fn init_libs(lua: &Lua) -> rlua::Result<()> {
-    use ::{*, objects::*};
+    use {objects::*, *};
     setup_awesome_path(lua)?;
     setup_global_signals(lua)?;
     setup_xcb_connection(lua)?;
@@ -88,34 +87,34 @@ fn init_libs(lua: &Lua) -> rlua::Result<()> {
     Ok(())
 }
 
-
 /// This function behaves just like Lua's built-in type() function, but also
 /// recognises classes and returns special names for them.
 fn type_override(_lua: &Lua, arg: Value) -> rlua::Result<String> {
     // Lua's type() returns the result of lua_typename(), but rlua does not make
     // that available to us, so write our own.
     Ok(match arg {
-           Value::Error(e) => return Err(e),
-           Value::Nil => "nil",
-           Value::Boolean(_) => "boolean",
-           Value::LightUserData(_) => "userdata",
-           Value::Integer(_) => "number",
-           Value::Number(_) => "number",
-           Value::String(_) => "string",
-           Value::Function(_) => "function",
-           Value::Thread(_) => "thread",
-           Value::Table(_) => "table",
-           Value::UserData(o) => {
-               // Handle our own objects specially: Get the object's class from its user
-               // value's metatable's __class entry. Then get the class name
-               // from the class's user value's metatable's name entry.
-               return o.get_user_value::<Table>()
-                       .ok()
-                       .and_then(|table| table.get_metatable())
-                       .and_then(|meta| meta.raw_get::<_, AnyUserData>("__class").ok())
-                       .and_then(|class| class.get_user_value::<Table>().ok())
-                       .map(|table| table.raw_get("name"))
-                       .unwrap_or_else(|| Ok("userdata".into()))
-           }
-       }.into())
+        Value::Error(e) => return Err(e),
+        Value::Nil => "nil",
+        Value::Boolean(_) => "boolean",
+        Value::LightUserData(_) => "userdata",
+        Value::Integer(_) => "number",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Function(_) => "function",
+        Value::Thread(_) => "thread",
+        Value::Table(_) => "table",
+        Value::UserData(o) => {
+            // Handle our own objects specially: Get the object's class from its user
+            // value's metatable's __class entry. Then get the class name
+            // from the class's user value's metatable's name entry.
+            return o
+                .get_user_value::<Table>()
+                .ok()
+                .and_then(|table| table.get_metatable())
+                .and_then(|meta| meta.raw_get::<_, AnyUserData>("__class").ok())
+                .and_then(|class| class.get_user_value::<Table>().ok())
+                .map(|table| table.raw_get("name"))
+                .unwrap_or_else(|| Ok("userdata".into()));
+        }
+    }.into())
 }

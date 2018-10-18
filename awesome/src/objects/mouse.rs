@@ -6,8 +6,7 @@
 use std::default::Default;
 use std::fmt::{self, Display, Formatter};
 
-use rlua::{self, AnyUserData, Lua, MetaMethod, Table,
-           ToLua, UserData, UserDataMethods, Value};
+use rlua::{self, AnyUserData, Lua, MetaMethod, Table, ToLua, UserData, UserDataMethods, Value};
 
 use common::object::Objectable;
 use objects::screen::{Screen, SCREENS_HANDLE};
@@ -18,7 +17,7 @@ const NEWINDEX_MISS_FUNCTION: &'static str = "__newindex_miss_function";
 #[derive(Clone, Debug)]
 pub struct MouseState {
     // TODO Fill in
-    dummy: i32
+    dummy: i32,
 }
 
 impl Default for MouseState {
@@ -52,16 +51,21 @@ pub fn init(lua: &Lua) -> rlua::Result<()> {
 
 fn method_setup(lua: &Lua, mouse_table: &Table) -> rlua::Result<()> {
     mouse_table.set("coords", lua.create_function(coords)?)?;
-    mouse_table.set("set_index_miss_handler",
-                     lua.create_function(set_index_miss)?)?;
-    mouse_table.set("set_newindex_miss_handler",
-                     lua.create_function(set_newindex_miss)?)?;
+    mouse_table.set(
+        "set_index_miss_handler",
+        lua.create_function(set_index_miss)?,
+    )?;
+    mouse_table.set(
+        "set_newindex_miss_handler",
+        lua.create_function(set_newindex_miss)?,
+    )?;
     Ok(())
 }
 
-fn coords<'lua>(lua: &'lua Lua,
-                (coords, _ignore_enter): (rlua::Value<'lua>, rlua::Value<'lua>))
-                -> rlua::Result<Table<'lua>> {
+fn coords<'lua>(
+    lua: &'lua Lua,
+    (coords, _ignore_enter): (rlua::Value<'lua>, rlua::Value<'lua>),
+) -> rlua::Result<Table<'lua>> {
     // TODO Get Cords
     unimplemented!()
 }
@@ -78,21 +82,23 @@ fn set_newindex_miss(lua: &Lua, func: rlua::Function) -> rlua::Result<()> {
     table.set(NEWINDEX_MISS_FUNCTION, func)
 }
 
-fn index<'lua>(lua: &'lua Lua,
-               (mouse, index): (AnyUserData<'lua>, Value<'lua>))
-               -> rlua::Result<Value<'lua>> {
+fn index<'lua>(
+    lua: &'lua Lua,
+    (mouse, index): (AnyUserData<'lua>, Value<'lua>),
+) -> rlua::Result<Value<'lua>> {
     let obj_table = mouse.get_user_value::<Table>()?;
     match index {
         Value::String(ref string) => {
             let string = string.to_str()?;
             if string != "screen" {
-                return obj_table.get(string)
+                return obj_table.get(string);
             }
 
             // TODO Get output
             let output = unimplemented!();
 
-            let mut screens: Vec<Screen> = lua.named_registry_value::<Vec<AnyUserData>>(SCREENS_HANDLE)?
+            let mut screens: Vec<Screen> = lua
+                .named_registry_value::<Vec<AnyUserData>>(SCREENS_HANDLE)?
                 .into_iter()
                 .map(|obj| Screen::cast(obj.into()).unwrap())
                 .collect();
@@ -106,12 +112,12 @@ fn index<'lua>(lua: &'lua Lua,
                 }
             }
             if screens.len() > 0 {
-                return screens[0].clone().to_lua(lua)
+                return screens[0].clone().to_lua(lua);
             }
 
-            return Ok(Value::Nil)
+            return Ok(Value::Nil);
         }
         _ => {}
     }
-    return obj_table.get(index)
+    return obj_table.get(index);
 }

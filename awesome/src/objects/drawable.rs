@@ -5,20 +5,21 @@ use std::fmt::{self, Display, Formatter};
 
 use cairo::{Format, ImageSurface};
 use glib::translate::ToGlibPtr;
-use rlua::{self, AnyUserData, LightUserData, Lua, Table, ToLua,
-           UserData, UserDataMethods, Value};
+use rlua::{self, AnyUserData, LightUserData, Lua, Table, ToLua, UserData, UserDataMethods, Value};
 use wlroots::{Area, Origin, Size};
 
-use common::{class::{self, Class},
-             object::{self, Object, Objectable},
-             property::Property};
+use common::{
+    class::{self, Class},
+    object::{self, Object, Objectable},
+    property::Property,
+};
 
 #[derive(Clone, Debug)]
 pub struct DrawableState {
     pub surface: Option<ImageSurface>,
     geo: Area,
     // TODO Use this to determine whether we draw this or not
-    refreshed: bool
+    refreshed: bool,
 }
 
 pub struct Drawable<'lua>(Object<'lua>);
@@ -27,9 +28,11 @@ impl_objectable!(Drawable, DrawableState);
 
 impl Default for DrawableState {
     fn default() -> Self {
-        DrawableState { surface: None,
-                        geo: Area::default(),
-                        refreshed: false }
+        DrawableState {
+            surface: None,
+            geo: Area::default(),
+            refreshed: false,
+        }
     }
 }
 
@@ -80,10 +83,10 @@ impl<'lua> Drawable<'lua> {
             drawable.surface = None;
             let size: Size = geometry.size;
             if size.width > 0 && size.height > 0 {
-                drawable.surface = Some(ImageSurface::create(Format::ARgb32,
-                                                        size.width,
-                                                        size.height)
-                    .map_err(|err| RuntimeError(format!("Could not allocate {:?}", err)))?);
+                drawable.surface = Some(
+                    ImageSurface::create(Format::ARgb32, size.width, size.height)
+                        .map_err(|err| RuntimeError(format!("Could not allocate {:?}", err)))?,
+                );
                 // TODO emity property::surface
             }
         }
@@ -119,11 +122,12 @@ impl UserData for DrawableState {
 pub fn init(lua: &Lua) -> rlua::Result<Class> {
     Class::builder(lua, "drawable", None)?
         .method("geometry".into(), lua.create_function(geometry)?)?
-        .property(Property::new("surface".into(),
-                                None,
-                                Some(lua.create_function(get_surface)?),
-                                None))?
-        .save_class("drawable")?
+        .property(Property::new(
+            "surface".into(),
+            None,
+            Some(lua.create_function(get_surface)?),
+            None,
+        ))?.save_class("drawable")?
         .build()
 }
 

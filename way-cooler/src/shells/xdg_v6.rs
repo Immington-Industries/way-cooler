@@ -1,12 +1,14 @@
-use wlroots::{CompositorHandle, Origin, SurfaceHandle, SurfaceHandler, XdgV6ShellHandler,
-              XdgV6ShellManagerHandler, XdgV6ShellState::*, XdgV6ShellSurfaceHandle};
+use wlroots::{
+    CompositorHandle, Origin, SurfaceHandle, SurfaceHandler, XdgV6ShellHandler,
+    XdgV6ShellManagerHandler, XdgV6ShellState::*, XdgV6ShellSurfaceHandle,
+};
 
 use std::rc::Rc;
 use wlroots::xdg_shell_v6_events::{MoveEvent, ResizeEvent};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct XdgV6 {
-    shell_surface: XdgV6ShellSurfaceHandle
+    shell_surface: XdgV6ShellSurfaceHandle,
 }
 
 impl XdgV6 {
@@ -16,11 +18,13 @@ impl XdgV6 {
 }
 
 impl XdgV6ShellHandler for XdgV6 {
-    fn resize_request(&mut self,
-                      compositor: CompositorHandle,
-                      _: SurfaceHandle,
-                      shell_surface: XdgV6ShellSurfaceHandle,
-                      event: &ResizeEvent) {
+    fn resize_request(
+        &mut self,
+        compositor: CompositorHandle,
+        _: SurfaceHandle,
+        shell_surface: XdgV6ShellSurfaceHandle,
+        event: &ResizeEvent,
+    ) {
         with_handles!([(compositor: {compositor})] => {
             let server: &mut ::Server = compositor.into();
             let ::Server { ref mut seat,
@@ -35,11 +39,13 @@ impl XdgV6ShellHandler for XdgV6 {
         }).unwrap();
     }
 
-    fn move_request(&mut self,
-                    compositor: CompositorHandle,
-                    _: SurfaceHandle,
-                    shell_surface: XdgV6ShellSurfaceHandle,
-                    _: &MoveEvent) {
+    fn move_request(
+        &mut self,
+        compositor: CompositorHandle,
+        _: SurfaceHandle,
+        shell_surface: XdgV6ShellSurfaceHandle,
+        _: &MoveEvent,
+    ) {
         with_handles!([(compositor: {compositor})] => {
             let server: &mut ::Server = compositor.into();
             let ref mut seat = server.seat;
@@ -61,10 +67,12 @@ impl XdgV6ShellHandler for XdgV6 {
         }).unwrap();
     }
 
-    fn on_commit(&mut self,
-                 compositor: CompositorHandle,
-                 _: SurfaceHandle,
-                 shell_surface: XdgV6ShellSurfaceHandle) {
+    fn on_commit(
+        &mut self,
+        compositor: CompositorHandle,
+        _: SurfaceHandle,
+        shell_surface: XdgV6ShellSurfaceHandle,
+    ) {
         let configure_serial = {
             with_handles!([(shell_surface: {shell_surface.clone()})] => {
                 shell_surface.configure_serial()
@@ -100,10 +108,12 @@ impl XdgV6ShellHandler for XdgV6 {
         }).unwrap();
     }
 
-    fn map_request(&mut self,
-                   compositor: CompositorHandle,
-                   _: SurfaceHandle,
-                   shell_surface_handle: XdgV6ShellSurfaceHandle) {
+    fn map_request(
+        &mut self,
+        compositor: CompositorHandle,
+        _: SurfaceHandle,
+        shell_surface_handle: XdgV6ShellSurfaceHandle,
+    ) {
         let is_toplevel = with_handles!([(shell_surface: {&shell_surface_handle})] => {
             match shell_surface.state().unwrap() {
                 TopLevel(_) => true,
@@ -128,10 +138,12 @@ impl XdgV6ShellHandler for XdgV6 {
         );
     }
 
-    fn unmap_request(&mut self,
-                     compositor: CompositorHandle,
-                     _: SurfaceHandle,
-                     shell_surface: XdgV6ShellSurfaceHandle) {
+    fn unmap_request(
+        &mut self,
+        compositor: CompositorHandle,
+        _: SurfaceHandle,
+        shell_surface: XdgV6ShellSurfaceHandle,
+    ) {
         dehandle!(
             @compositor = {compositor};
             let server: &mut ::Server = compositor.into();
@@ -159,10 +171,11 @@ impl XdgV6ShellHandler for XdgV6 {
 pub struct XdgV6ShellManager;
 
 impl XdgV6ShellManagerHandler for XdgV6ShellManager {
-    fn new_surface(&mut self,
-                   _: CompositorHandle,
-                   _: XdgV6ShellSurfaceHandle)
-                   -> (Option<Box<XdgV6ShellHandler>>, Option<Box<SurfaceHandler>>) {
+    fn new_surface(
+        &mut self,
+        _: CompositorHandle,
+        _: XdgV6ShellSurfaceHandle,
+    ) -> (Option<Box<XdgV6ShellHandler>>, Option<Box<SurfaceHandler>>) {
         (Some(Box::new(::XdgV6::new())), None)
     }
 }

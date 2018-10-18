@@ -13,7 +13,7 @@ pub enum XPropertyType {
     /// Cardinal
     Number,
     /// Cardinal with values 0 and 1 (or "0 and != 0")
-    Boolean
+    Boolean,
 }
 
 impl XPropertyType {
@@ -22,7 +22,7 @@ impl XPropertyType {
             "string" => Some(XPropertyType::String),
             "number" => Some(XPropertyType::Number),
             "boolean" => Some(XPropertyType::Boolean),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -31,7 +31,7 @@ impl XPropertyType {
 pub struct XProperty {
     pub atom: xcb_atom_t,
     pub name: String,
-    pub type_: XPropertyType
+    pub type_: XPropertyType,
 }
 
 impl XProperty {

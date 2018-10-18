@@ -1,10 +1,12 @@
 use std::rc::Rc;
 
 use wlroots::utils::current_time;
-use wlroots::{project_box, Area, CompositorHandle, Origin, OutputHandle, OutputHandler,
-              OutputLayoutHandle, Renderer, Size, SurfaceHandle};
+use wlroots::{
+    project_box, Area, CompositorHandle, Origin, OutputHandle, OutputHandler, OutputLayoutHandle,
+    Renderer, Size, SurfaceHandle,
+};
 
-use ::Server;
+use Server;
 
 pub struct Output;
 
@@ -25,11 +27,13 @@ impl OutputHandler for Output {
     }
 }
 
-fn render_surface(renderer: &mut Renderer,
-                  layout: &mut OutputLayoutHandle,
-                  surface: &mut SurfaceHandle,
-                  lx: i32,
-                  ly: i32) {
+fn render_surface(
+    renderer: &mut Renderer,
+    layout: &mut OutputLayoutHandle,
+    surface: &mut SurfaceHandle,
+    lx: i32,
+    ly: i32,
+) {
     with_handles!([(surface: {surface}), (layout: {&mut *layout})] => {
         let (width, height) = surface.current_state().size();
         let (render_width, render_height) =
@@ -54,9 +58,11 @@ fn render_surface(renderer: &mut Renderer,
 }
 
 /// Render all of the client views.
-fn render_views(renderer: &mut Renderer,
-                layout: &mut OutputLayoutHandle,
-                views: &mut Vec<Rc<::View>>) {
+fn render_views(
+    renderer: &mut Renderer,
+    layout: &mut OutputLayoutHandle,
+    views: &mut Vec<Rc<::View>>,
+) {
     for view in views.iter_mut().rev() {
         let origin = view.origin.get();
         view.for_each_surface(&mut |surface: SurfaceHandle, sx, sy| {

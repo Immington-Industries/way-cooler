@@ -5,19 +5,21 @@
 use std::default::Default;
 use std::fmt::{self, Display, Formatter};
 
-use rlua::{self, AnyUserData, Lua, Table, ToLua, UserData,
-           UserDataMethods, Value};
+use rlua::{self, AnyUserData, Lua, Table, ToLua, UserData, UserDataMethods, Value};
 use wlroots::events::key_events::Key;
 use xcb::ffi::xproto::xcb_button_t;
 
-use common::{class::{self, Class},
-             object::{self, Object, Objectable},
-             property::Property, signal};
+use common::{
+    class::{self, Class},
+    object::{self, Object, Objectable},
+    property::Property,
+    signal,
+};
 
 #[derive(Clone, Debug)]
 pub struct ButtonState {
     button: xcb_button_t,
-    modifiers: Vec<Key>
+    modifiers: Vec<Key>,
 }
 
 #[derive(Clone, Debug)]
@@ -31,8 +33,10 @@ impl Display for ButtonState {
 
 impl Default for ButtonState {
     fn default() -> Self {
-        ButtonState { button: xcb_button_t::default(),
-                      modifiers: Vec::new() }
+        ButtonState {
+            button: xcb_button_t::default(),
+            modifiers: Vec::new(),
+        }
     }
 }
 
@@ -45,8 +49,9 @@ impl UserData for ButtonState {
 impl<'lua> Button<'lua> {
     fn new(lua: &'lua Lua, args: rlua::Table) -> rlua::Result<Object<'lua>> {
         let class = class::class_setup(lua, "button")?;
-        Ok(Button::allocate(lua, class)?.handle_constructor_argument(args)?
-                                        .build())
+        Ok(Button::allocate(lua, class)?
+            .handle_constructor_argument(args)?
+            .build())
     }
 
     pub fn button(&self) -> rlua::Result<Value<'lua>> {
@@ -83,30 +88,33 @@ impl_objectable!(Button, ButtonState);
 
 pub fn init(lua: &Lua) -> rlua::Result<Class> {
     Class::builder(lua, "button", None)?
-        .method("__call".into(),
-                lua.create_function(|lua, args: rlua::Table|
-                                    Button::new(lua, args))?)?
-        .property(Property::new("button".into(),
-                                Some(lua.create_function(set_button)?),
-                                Some(lua.create_function(get_button)?),
-                                Some(lua.create_function(set_button)?)))?
-        .property(Property::new("modifiers".into(),
-                                Some(lua.create_function(set_modifiers)?),
-                                Some(lua.create_function(get_modifiers)?),
-                                Some(lua.create_function(set_modifiers)?)))?
-        .save_class("button")?
+        .method(
+            "__call".into(),
+            lua.create_function(|lua, args: rlua::Table| Button::new(lua, args))?,
+        )?.property(Property::new(
+            "button".into(),
+            Some(lua.create_function(set_button)?),
+            Some(lua.create_function(get_button)?),
+            Some(lua.create_function(set_button)?),
+        ))?.property(Property::new(
+            "modifiers".into(),
+            Some(lua.create_function(set_modifiers)?),
+            Some(lua.create_function(get_modifiers)?),
+            Some(lua.create_function(set_modifiers)?),
+        ))?.save_class("button")?
         .build()
 }
 
-fn set_button<'lua>(lua: &'lua Lua,
-                    (obj, val): (AnyUserData<'lua>, Value<'lua>))
-                    -> rlua::Result<Value<'lua>> {
+fn set_button<'lua>(
+    lua: &'lua Lua,
+    (obj, val): (AnyUserData<'lua>, Value<'lua>),
+) -> rlua::Result<Value<'lua>> {
     use rlua::Value::*;
     let mut button = Button::cast(obj.clone().into())?;
     match val {
         Number(num) => button.set_button(num as _)?,
         Integer(num) => button.set_button(num as _)?,
-        _ => button.set_button(xcb_button_t::default())?
+        _ => button.set_button(xcb_button_t::default())?,
     }
     signal::emit_object_signal(lua, obj.into(), "property::button".into(), val)?;
     Ok(Value::Nil)
@@ -116,9 +124,10 @@ fn get_button<'lua>(_: &'lua Lua, obj: AnyUserData<'lua>) -> rlua::Result<Value<
     Button::cast(obj.into())?.button()
 }
 
-fn set_modifiers<'lua>(lua: &'lua Lua,
-                       (obj, modifiers): (AnyUserData<'lua>, Table<'lua>))
-                       -> rlua::Result<()> {
+fn set_modifiers<'lua>(
+    lua: &'lua Lua,
+    (obj, modifiers): (AnyUserData<'lua>, Table<'lua>),
+) -> rlua::Result<()> {
     let mut button = Button::cast(obj.clone().into())?;
     button.set_modifiers(modifiers.clone())?;
     signal::emit_object_signal(lua, obj.into(), "property::modifiers".into(), modifiers)?;
