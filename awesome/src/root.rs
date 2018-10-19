@@ -146,10 +146,9 @@ fn root_keys<'lua>(
 
 #[cfg(test)]
 mod test {
-    use super::super::key;
-    use super::super::root;
-    use super::super::tag;
+    use objects::{key, tag};
     use rlua::Lua;
+    use root;
 
     #[test]
     fn tags_none() {
