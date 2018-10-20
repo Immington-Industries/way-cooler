@@ -6,7 +6,7 @@ use std::fmt::{self, Display, Formatter};
 
 use rlua::{self, Lua, Table, ToLua, UserData, Value};
 
-use common::{class::{Class, ClassBuilder},
+use common::{class::{self, Class, ClassBuilder},
              object::{Object, Objectable}};
 
 #[derive(Clone, Debug)]
@@ -24,15 +24,16 @@ impl Default for ClientState {
 }
 
 /* This is currently unused.
- * TODO: Figure out if this will be needed later.
+ * TODO: Figure out if this will be needed later.*/
 
 impl <'lua> Client<'lua> {
-    fn new(lua: &Lua) -> rlua::Result<Object> {
+    fn new(lua: &'lua Lua, args: Table) -> rlua::Result<Object<'lua>> {
         let class = class::class_setup(lua, "client")?;
-        Ok(Client::allocate(lua, class)?.build())
+        Ok(Client::allocate(lua, class)?.handle_constructor_argument(args)?
+                                        .build())
     }
 }
-*/
+
 
 impl Display for ClientState {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -59,6 +60,8 @@ fn method_setup<'lua>(lua: &'lua Lua,
     // TODO Do properly
     use super::dummy;
     builder.method("connect_signal".into(), lua.create_function(dummy)?)?
+           .method("__call".into(),
+                   lua.create_function(|lua, args: Table| Client::new(lua, args))?)?
            .method("get".into(), lua.create_function(dummy_table)?)
 }
 

@@ -12,13 +12,16 @@ use common::{class::{self, Class, ClassBuilder},
              property::Property,
              signal};
 
+use objects::client::{ClientState};
+
 pub const TAG_LIST: &'static str = "__tag_list";
 
 #[derive(Clone, Debug)]
 pub struct TagState {
     name: Option<String>,
     selected: bool,
-    activated: bool
+    activated: bool,
+    clients: Vec<ClientState>,
 }
 
 pub struct Tag<'lua>(Object<'lua>);
@@ -27,7 +30,8 @@ impl Default for TagState {
     fn default() -> Self {
         TagState { name: None,
                    selected: false,
-                   activated: false }
+                   activated: false,
+                   clients: Vec::new() }
     }
 }
 
@@ -84,9 +88,9 @@ fn method_setup<'lua>(lua: &'lua Lua,
                                    Some(lua.create_function(get_activated)?),
                                    Some(lua.create_function(set_activated)?)))?
            .property(Property::new("clients".into(),
-                                   None,
+                                   Some(lua.create_function(set_clients)?),
                                    Some(lua.create_function(get_clients)?),
-                                   None))
+                                   Some(lua.create_function(set_clients)?)))
 }
 
 impl_objectable!(Tag, TagState);
@@ -172,18 +176,32 @@ fn get_activated<'lua>(_: &'lua Lua, obj: AnyUserData<'lua>) -> rlua::Result<Val
 }
 
 fn get_clients<'lua>(lua: &'lua Lua, _obj: AnyUserData<'lua>) -> rlua::Result<Value<'lua>> {
-    // TODO / FIXME: Do this properly.
-    // - Actually return clients.
+    // TODO:
     // - Right now this is a property that returns a function. Can we get rid of
-    // some of this   indirection?
-    Ok(Value::Function(lua.create_function(|lua, _: ()| {
-                                                lua.create_table()
+    // some of this indirection?
+    // - This copies the values, instead of returning the initial lus tables. Can we
+    //     keep the references without breaking the macro
+    
+    Ok(Value::Function(lua.create_function(|lua, (obj, value): (AnyUserData<'lua>, Value<'lua>)| {
+                                                if let Value::Table(new_clients) = value {
+                                                    set_clients(lua, (obj.clone(), new_clients))?;
+                                                }
+                                                Ok(obj.borrow::<TagState>()?.clients.clone().to_lua(lua))
                                             })?))
+}
+
+fn set_clients<'lua>(lua: &'lua Lua, (obj, value): (AnyUserData<'lua>, Table)) -> rlua::Result<Value<'lua>> {
+    let mut state = obj.borrow_mut::<TagState>()?;
+    state.clients.clear();
+    for client in value.sequence_values::<ClientState>() {
+        state.clients.push(client?);
+    };
+    Ok(Value::Nil)
 }
 
 #[cfg(test)]
 mod test {
-    use super::super::tag;
+    use super::super::{tag, client};
     use rlua::Lua;
 
     #[test]
@@ -324,6 +342,38 @@ assert(called_activated == 1)
 assert(called_selected == 1)
 "#,
                  None
+        ).unwrap()
+    }
+
+    #[test]
+    fn tag_client() {
+        let lua = Lua::new();
+        tag::init(&lua).unwrap();
+        lua.eval(
+             r#"
+local t = tag{}
+
+assert(#t:clients() == 0, "Cannot get the clients")
+"#,
+             None
+        ).unwrap()
+    }
+
+    #[test]
+    fn tag_new_client() {
+        let lua = Lua::new();
+        tag::init(&lua).unwrap();
+        client::init(&lua).unwrap();
+        lua.eval(
+             r#"
+local c = client{}
+local t = tag{ clients = { c } }
+
+assert(c, "client doesn't exists")
+assert(#t:clients() == 1, "Tag doesn't have the clients")
+--assert(t:clients()[1] == c, "Pass by value, not by reference")
+"#,
+             None
         ).unwrap()
     }
 }
