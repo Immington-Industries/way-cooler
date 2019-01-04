@@ -1,0 +1,7 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=Way Cooler
+Comment=Customizable Wayland compositor
+TryExec=way-cooler
+Exec=dbus-launch --exit-with-session way-cooler
+Type=Application
