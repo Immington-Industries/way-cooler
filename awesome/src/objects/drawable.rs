@@ -6,7 +6,7 @@ use cairo::{Format, ImageSurface};
 use glib::translate::ToGlibPtr;
 use rlua::{self, LightUserData, Lua, Table, UserData, UserDataMethods, Value};
 use tempfile;
-use wlroots::{Area, Origin, Size};
+use wlroots::area::{Area, Origin, Size};
 
 use crate::common::{
     class::{self, Class},

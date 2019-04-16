@@ -6,7 +6,7 @@
 use std::default::Default;
 
 use rlua::{self, AnyUserData, Lua, MetaMethod, Table, ToLua, UserData, UserDataMethods, Value};
-use wlroots::{Area, Origin, Size};
+use wlroots::area::{Area, Origin, Size};
 
 use crate::common::{
     class::{self, Class, ClassBuilder},

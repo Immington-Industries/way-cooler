@@ -11,7 +11,7 @@ use wayland_client::{
     NewProxy, Proxy
 };
 
-use wlroots::Size;
+use wlroots::area::Size;
 
 /// The minimum version of the wl_shm global to bind to.
 pub const WL_SHM_VERSION: u32 = 1;

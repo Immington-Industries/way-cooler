@@ -7,7 +7,8 @@ use std::cell::RefMut;
 
 use cairo::ImageSurface;
 use rlua::{self, prelude::LuaInteger, Lua, Table, ToLua, UserData, UserDataMethods};
-use wlroots::{Area, Origin, Size, Texture};
+use wlroots::area::{Area, Origin, Size};
+use wlroots::render::Texture;
 
 use crate::common::{
     class::{self, Class, ClassBuilder},

@@ -3,6 +3,7 @@
 //! This is mostly used to define keybindings.
 
 use rlua::{self, Lua, Table, ToLua, UserData, UserDataMethods, Value};
+use wlroots::input::keyboard;
 use wlroots::{self, xkbcommon::xkb};
 
 use crate::common::{
@@ -15,7 +16,7 @@ use crate::lua::mods_to_num;
 #[derive(Clone, Debug, Default)]
 pub struct KeyState {
     modifiers: u32,
-    keysym: wlroots::Key,
+    keysym: keyboard::Key,
     keycode: xkb::Keycode
 }
 

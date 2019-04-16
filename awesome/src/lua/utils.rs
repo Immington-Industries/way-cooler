@@ -1,12 +1,12 @@
 //! Utilities to talk to Lua
 
 use wlroots::{
-    events::{
-        key_events::Key,
-        pointer_events::{wlr_button_state, BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE}
+    input::{
+        keyboard::{Key, Modifier as KeyboardModifier},
+        pointer::event::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE}
     },
-    xkbcommon::xkb::keysyms::*,
-    KeyboardModifier
+    wlroots_sys::wlr_button_state,
+    xkbcommon::xkb::keysyms::*
 };
 
 use rlua::{self, Error::RuntimeError, Lua, Table, Value};

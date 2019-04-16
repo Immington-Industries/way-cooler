@@ -5,7 +5,7 @@
 use std::default::Default;
 
 use rlua::{self, Lua, Table, UserData, UserDataMethods, Value};
-use wlroots::events::key_events::Key;
+use wlroots::input::keyboard::Key;
 use xcb::ffi::xproto::xcb_button_t;
 
 use crate::common::{

@@ -3,7 +3,7 @@
 use std::fmt;
 
 use wayland_client::{protocol::wl_output::WlOutput, NewProxy, Proxy};
-use wlroots::{Area, Origin, Size};
+use wlroots::area::{Area, Origin, Size};
 
 use crate::lua::LUA;
 use crate::objects::screen::{self, Screen};

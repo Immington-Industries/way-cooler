@@ -35,9 +35,10 @@ pub fn keygrabber_handle(mods: Vec<Key>, sym: Key, state: wlr_key_state) -> rlua
             "release"
         }
         .into();
-        let lua_sym = keysym_get_name(sym);
-        let lua_mods = crate::lua::mods_to_lua(&*lua, &mods)?;
-        let res = call_keygrabber(&*lua, (lua_mods, lua_sym, lua_state));
+        let lua_sym = keysym_get_name(sym.keycode());
+        let mods : Vec<u32> = mods.iter().map(|k| k.keycode()).collect();
+        let lua_mods = crate::lua::mods_to_lua(lua, &mods)?;
+        let res = call_keygrabber(lua, (lua_mods, lua_sym, lua_state));
         match res {
             Ok(_) | Err(rlua::Error::FromLuaConversionError { .. }) => Ok(()),
             err => err
