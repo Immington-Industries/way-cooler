@@ -201,6 +201,7 @@ fn init_libs(lua: rlua::Context, lib_paths: &[&str]) -> rlua::Result<()> {
     setup_awesome_path(lua, lib_paths)?;
     setup_global_signals(lua)?;
     setup_xcb_connection(lua)?;
+    awful::spawn::init(lua)?;
     button::init(lua)?;
     awesome::init(lua)?;
     key::init(lua)?;

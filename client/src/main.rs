@@ -48,6 +48,7 @@ extern crate log;
 mod macros;
 mod area;
 mod awesome;
+mod awful;
 mod common;
 mod dbus;
 mod keygrabber;
