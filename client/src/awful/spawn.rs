@@ -1,8 +1,8 @@
+use rlua;
 use std::{
     process::{Command, Stdio},
-    thread
+    thread,
 };
-use rlua::{self};
 pub fn init(lua: rlua::Context) -> rlua::Result<()> {
     // TODO Do properly
     use crate::objects::dummy;
