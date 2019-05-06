@@ -186,7 +186,7 @@ impl<'lua, S: ObjectStateType> Class<'lua, S> {
         signal::connect_signals(ctx, class.signals()?, &name, &[func])
     }
 
-    pub(crate) fn emit_signal<A>(
+    pub fn emit_signal<A>(
         lua: rlua::Context<'lua>,
         class: &Class<'lua, S>,
         name: &str,
