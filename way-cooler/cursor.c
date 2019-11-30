@@ -7,7 +7,6 @@
 
 #include <wlr/util/log.h>
 
-#include "mousegrabber.h"
 #include "output.h"
 #include "seat.h"
 #include "server.h"
@@ -94,9 +93,6 @@ static void wc_process_motion(struct wc_server *server, uint32_t time) {
 			}
 		}
 	}
-
-	wc_mousegrabber_notify_mouse_moved(
-			server->mousegrabber, wlr_cursor->x, wlr_cursor->y);
 }
 
 static void wc_cursor_motion(struct wl_listener *listener, void *data) {
@@ -124,37 +120,6 @@ static void wc_cursor_button(struct wl_listener *listener, void *data) {
 	struct wc_server *server = cursor->server;
 	struct wlr_event_pointer_button *event = data;
 
-	switch (event->button) {
-	case BUTTON_LEFT:
-		if (event->state) {
-			server->mousegrabber->button |= 1 << 0;
-		} else {
-			server->mousegrabber->button &= ~(1 << 0);
-		}
-		break;
-	case BUTTON_MIDDLE:
-		if (event->state) {
-			server->mousegrabber->button |= 1 << 1;
-		} else {
-			server->mousegrabber->button &= ~(1 << 1);
-		}
-		break;
-	case BUTTON_RIGHT:
-		if (event->state) {
-			server->mousegrabber->button |= 1 << 2;
-		} else {
-			server->mousegrabber->button &= ~(1 << 2);
-		}
-		break;
-	}
-
-	wc_mousegrabber_notify_mouse_button(
-			server->mousegrabber, cursor->wlr_cursor->x, cursor->wlr_cursor->y);
-
-	if (server->mouse_grab) {
-		return;
-	}
-
 	wlr_seat_pointer_notify_button(
 			server->seat->seat, event->time_msec, event->button, event->state);
 
@@ -173,21 +138,6 @@ static void wc_cursor_axis(struct wl_listener *listener, void *data) {
 	struct wc_cursor *cursor = wl_container_of(listener, cursor, axis);
 	struct wc_server *server = cursor->server;
 	struct wlr_event_pointer_axis *event = data;
-
-	if (event->delta_discrete == SCROLL_UP) {
-		server->mousegrabber->button &= ~(1 << 4);
-		server->mousegrabber->button |= 1 << 3;
-	} else if (event->delta_discrete == SCROLL_DOWN) {
-		server->mousegrabber->button |= 1 << 4;
-		server->mousegrabber->button &= ~(1 << 3);
-	}
-
-	wc_mousegrabber_notify_mouse_button(
-			server->mousegrabber, cursor->wlr_cursor->x, cursor->wlr_cursor->y);
-
-	if (server->mouse_grab) {
-		return;
-	}
 
 	wlr_seat_pointer_notify_axis(server->seat->seat, event->time_msec,
 			event->orientation, event->delta, event->delta_discrete,

@@ -25,9 +25,8 @@ static void wc_seat_request_cursor(struct wl_listener *listener, void *data) {
 void wc_seat_update_surface_focus(struct wc_seat *seat,
 		struct wlr_surface *surface, double sx, double sy, uint32_t time) {
 	struct wlr_seat *wlr_seat = seat->seat;
-	struct wc_server *server = seat->server;
 
-	if (surface == NULL || server->mouse_grab) {
+	if (surface == NULL) {
 		wlr_seat_pointer_clear_focus(wlr_seat);
 		return;
 	}
