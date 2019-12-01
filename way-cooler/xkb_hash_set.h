@@ -16,6 +16,9 @@ struct xkb_hash_set {
 	struct hash_entry set[XKB_KEY_VoidSymbol];
 };
 
+struct xkb_hash_set *xkb_hash_set_create(void);
+void xkb_hash_set_destroy(struct xkb_hash_set *hash_set);
+
 void xkb_hash_set_clear(struct xkb_hash_set *hash_set);
 
 void xkb_hash_set_add_entry(

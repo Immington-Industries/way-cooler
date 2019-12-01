@@ -5,6 +5,18 @@
 
 #include <xcb/xcb.h>
 
+struct xkb_hash_set *xkb_hash_set_create(void) {
+	return calloc(1, sizeof(struct xkb_hash_set));
+}
+
+void xkb_hash_set_destroy(struct xkb_hash_set *hash_set) {
+	if (hash_set == NULL) {
+		return;
+	}
+	xkb_hash_set_clear(hash_set);
+	free(hash_set);
+}
+
 void xkb_hash_set_clear(struct xkb_hash_set *hash_set) {
 	const size_t hash_set_size =
 			sizeof(hash_set->set) / sizeof(hash_set->set[0]);

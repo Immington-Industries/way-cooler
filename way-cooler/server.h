@@ -58,7 +58,8 @@ struct wc_server {
 	struct wlr_data_device_manager *data_device_manager;
 	struct wlr_xdg_output_manager_v1 *xdg_output_manager;
 
-	struct wc_keybindings *keybindings;
+	struct wl_global *keybindings_global;
+	struct wl_list keybinders;
 };
 
 bool init_server(struct wc_server *server);
