@@ -1,4 +1,4 @@
-#include "input.h"
+#include "compositor/input.h"
 
 #include <unistd.h>
 
@@ -6,10 +6,10 @@
 #include <wlr/types/wlr_input_device.h>
 #include <wlr/util/log.h>
 
-#include "keyboard.h"
-#include "pointer.h"
-#include "seat.h"
-#include "server.h"
+#include "compositor/keyboard.h"
+#include "compositor/pointer.h"
+#include "compositor/seat.h"
+#include "compositor/server.h"
 
 static void wc_new_input(struct wl_listener *listener, void *data) {
 	struct wc_server *server = wl_container_of(listener, server, new_input);

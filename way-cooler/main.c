@@ -10,7 +10,7 @@
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/util/log.h>
 
-#include "server.h"
+#include "compositor/server.h"
 
 const char *WC_HELP_MESSAGE =
 		"Usage: %s [OPTION] startup_command\n"

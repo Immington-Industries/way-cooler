@@ -1,4 +1,4 @@
-#include "layer_shell.h"
+#include "compositor/layer_shell.h"
 
 #include <stdlib.h>
 
@@ -9,10 +9,10 @@
 #include <wlr/types/wlr_output_damage.h>
 #include <wlr/util/log.h>
 
-#include "output.h"
-#include "seat.h"
-#include "server.h"
-#include "view.h"
+#include "compositor/output.h"
+#include "compositor/seat.h"
+#include "compositor/server.h"
+#include "compositor/view.h"
 
 static const uint32_t LAYER_BOTH_HORIZ =
 		ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;

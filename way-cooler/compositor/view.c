@@ -1,4 +1,4 @@
-#include "view.h"
+#include "compositor/view.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -8,13 +8,13 @@
 #include <wlr/types/wlr_surface.h>
 #include <wlr/util/log.h>
 
-#include "cursor.h"
-#include "layer_shell.h"
-#include "output.h"
-#include "seat.h"
-#include "server.h"
-#include "xdg.h"
-#include "xwayland.h"
+#include "compositor/cursor.h"
+#include "compositor/layer_shell.h"
+#include "compositor/output.h"
+#include "compositor/seat.h"
+#include "compositor/server.h"
+#include "compositor/xdg.h"
+#include "compositor/xwayland.h"
 
 static bool wc_is_view_at(struct wc_view *view, double lx, double ly,
 		double *out_sx, double *out_sy, struct wlr_surface **out_surface) {

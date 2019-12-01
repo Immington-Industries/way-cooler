@@ -1,4 +1,4 @@
-#include "keyboard.h"
+#include "compositor/keyboard.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -10,8 +10,8 @@
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
 
-#include "keybindings.h"
-#include "seat.h"
+#include "compositor/seat.h"
+#include "plugins/keybindings.h"
 
 static bool wc_keyboard_mod_is_active(
 		struct wc_keyboard *keyboard, const char *mod_name) {

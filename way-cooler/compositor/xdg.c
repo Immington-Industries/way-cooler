@@ -1,4 +1,4 @@
-#include "xdg.h"
+#include "compositor/xdg.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -7,11 +7,11 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 
-#include "cursor.h"
-#include "output.h"
-#include "seat.h"
-#include "server.h"
-#include "view.h"
+#include "compositor/cursor.h"
+#include "compositor/output.h"
+#include "compositor/seat.h"
+#include "compositor/server.h"
+#include "compositor/view.h"
 
 static void wc_xdg_surface_map(struct wl_listener *listener, void *data) {
 	struct wc_view *view = wl_container_of(listener, view, map);

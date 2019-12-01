@@ -1,14 +1,14 @@
-#include "keybindings.h"
+#include "plugins/keybindings.h"
 
 #include <stdint.h>
 #include <stdlib.h>
 #include <wayland-server.h>
 #include <wlr/util/log.h>
 
-#include "seat.h"
-#include "server.h"
+#include "compositor/seat.h"
+#include "compositor/server.h"
+#include "utils/xkb_hash_set.h"
 #include "way-cooler-keybindings-unstable-v1-protocol.h"
-#include "xkb_hash_set.h"
 
 static void register_key(struct wl_client *client, struct wl_resource *resource,
 		uint32_t key, uint32_t mods) {

@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <wayland-server.h>
 
-#include "server.h"
-#include "xkb_hash_set.h"
+#include "compositor/server.h"
+#include "utils/xkb_hash_set.h"
 
 #define KEYBINDINGS_VERSION 1
 

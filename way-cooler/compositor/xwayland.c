@@ -1,15 +1,15 @@
 #define _POSIX_C_SOURCE 200112L
-#include "xwayland.h"
+#include "compositor/xwayland.h"
 
 #include <stdlib.h>
 #include <unistd.h>
 
 #include <wlr/util/log.h>
 
-#include "cursor.h"
-#include "seat.h"
-#include "server.h"
-#include "view.h"
+#include "compositor/cursor.h"
+#include "compositor/seat.h"
+#include "compositor/server.h"
+#include "compositor/view.h"
 
 void wc_xwayland_surface_destroy(struct wl_listener *listener, void *data) {
 	struct wc_view *view = wl_container_of(listener, view, destroy);

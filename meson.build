@@ -34,5 +34,7 @@ if git.found()
 endif
 add_project_arguments('-DWAY_COOLER_VERSION=@0@'.format(version), language: 'c')
 
+way_cooler_includes = include_directories('include')
+
 subdir('protocols')
 subdir('way-cooler')

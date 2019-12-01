@@ -40,27 +40,15 @@ way_cooler_deps = [
 	libinput,
 ]
 
-way_cooler_sources = files(
-	'cursor.c',
-	'input.c',
-	'keybindings.c',
-	'keyboard.c',
-	'layer_shell.c',
-	'main.c',
-	'output.c',
-	'pointer.c',
-	'seat.c',
-	'server.c',
-	'view.c',
-	'xdg.c',
-	'xkb_hash_set.c',
-	'xwayland.c',
-)
+way_cooler_sources = files('main.c')
+subdir('compositor')
+subdir('utils')
+subdir('plugins')
 
 executable(
     'way-cooler',
     way_cooler_sources,
     install : true,
-    include_directories: [include_directories('.')],
+    include_directories: [way_cooler_includes],
 	dependencies: way_cooler_deps,
 )

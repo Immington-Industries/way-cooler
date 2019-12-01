@@ -1,5 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
-#include "cursor.h"
+#include "compositor/cursor.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -7,10 +7,10 @@
 
 #include <wlr/util/log.h>
 
-#include "output.h"
-#include "seat.h"
-#include "server.h"
-#include "view.h"
+#include "compositor/output.h"
+#include "compositor/seat.h"
+#include "compositor/server.h"
+#include "compositor/view.h"
 
 #define BUTTON_LEFT 272
 #define BUTTON_RIGHT 273

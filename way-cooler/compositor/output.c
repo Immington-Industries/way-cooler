@@ -1,6 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "output.h"
+#include "compositor/output.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -15,9 +15,9 @@
 #include <wlr/util/log.h>
 #include <wlr/util/region.h>
 
-#include "layer_shell.h"
-#include "server.h"
-#include "view.h"
+#include "compositor/layer_shell.h"
+#include "compositor/server.h"
+#include "compositor/view.h"
 
 struct wc_render_data {
 	struct wlr_renderer *renderer;

@@ -1,4 +1,4 @@
-#include "pointer.h"
+#include "compositor/pointer.h"
 
 #include <stdlib.h>
 
@@ -7,7 +7,7 @@
 #include <wlr/backend/libinput.h>
 #include <wlr/types/wlr_input_device.h>
 
-#include "cursor.h"
+#include "compositor/cursor.h"
 
 static void wc_pointer_removed(struct wl_listener *listener, void *data) {
 	struct wc_pointer *pointer = wl_container_of(listener, pointer, destroy);

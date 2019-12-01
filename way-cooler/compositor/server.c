@@ -1,6 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "server.h"
+#include "compositor/server.h"
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -20,14 +20,14 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
 
-#include "cursor.h"
-#include "input.h"
-#include "keybindings.h"
-#include "layer_shell.h"
-#include "output.h"
-#include "seat.h"
-#include "view.h"
-#include "xwayland.h"
+#include "compositor/cursor.h"
+#include "compositor/input.h"
+#include "compositor/layer_shell.h"
+#include "compositor/output.h"
+#include "compositor/seat.h"
+#include "compositor/view.h"
+#include "compositor/xwayland.h"
+#include "plugins/keybindings.h"
 
 static void startup_command_killed(struct wl_listener *listener, void *data) {
 	struct wc_server *server =

@@ -1,4 +1,4 @@
-#include "seat.h"
+#include "compositor/seat.h"
 
 #include <stdlib.h>
 
@@ -6,8 +6,8 @@
 #include <wlr/types/wlr_surface.h>
 #include <wlr/xwayland.h>
 
-#include "cursor.h"
-#include "server.h"
+#include "compositor/cursor.h"
+#include "compositor/server.h"
 
 static void wc_seat_request_cursor(struct wl_listener *listener, void *data) {
 	struct wc_seat *seat = wl_container_of(listener, seat, request_set_cursor);
