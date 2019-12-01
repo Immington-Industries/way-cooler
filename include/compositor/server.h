@@ -26,7 +26,6 @@ struct wc_server {
 
 	const char *startup_cmd;
 	struct wl_client *startup_client;
-	struct wl_listener startup_client_destroyed;
 
 	struct wlr_xcursor_manager *xcursor_mgr;
 	struct wc_cursor *cursor;

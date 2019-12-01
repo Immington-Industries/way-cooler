@@ -29,13 +29,6 @@
 #include "compositor/xwayland.h"
 #include "plugins/plugins.h"
 
-static void startup_command_killed(struct wl_listener *listener, void *data) {
-	struct wc_server *server =
-			wl_container_of(listener, server, startup_client_destroyed);
-	wlr_log(WLR_INFO, "Startup command killed");
-	// TODO Something sophisticated - restart the client, shutdown, etc.
-}
-
 bool init_server(struct wc_server *server) {
 	if (server == NULL) {
 		return false;
@@ -78,21 +71,6 @@ bool init_server(struct wc_server *server) {
 }
 
 void fini_server(struct wc_server *server) {
-	// TODO Why is this segfaulting compositor closing?
-	/*
-	wc_seat_fini(server);
-	wc_output_fini(server);
-	wc_inputs_fini(server);
-	wc_views_fini(server);
-	wc_layers_fini(server);
-	wc_cursor_fini(server);
-
-	wlr_screencopy_manager_v1_destroy(server->screencopy_manager);
-	wlr_data_device_manager_destroy(server->data_device_manager);
-	wlr_xdg_output_manager_v1_destroy(server->xdg_output_manager);
-
-	wc_keybindings_fini(server);
-	*/
 	wc_plugins_fini(server);
 
 	wc_xwayland_fini(server);
@@ -120,52 +98,5 @@ failed:
 }
 
 void wc_server_execute_startup_command(struct wc_server *server) {
-	int sockets[2];
-	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0) {
-		wlr_log(WLR_ERROR, "Failed to create client wayland socket pair");
-		abort();
-	}
-	if (!set_cloexec(sockets[0], true) || !set_cloexec(sockets[1], true)) {
-		wlr_log(WLR_ERROR, "Failed to set exec flag for socket");
-		abort();
-	}
-	server->startup_client = wl_client_create(server->wl_display, sockets[0]);
-	if (server->startup_client == NULL) {
-		wlr_log(WLR_ERROR, "Could not create startup wl_client");
-		abort();
-	}
-	server->startup_client_destroyed.notify = startup_command_killed;
-	wl_client_add_destroy_listener(
-			server->startup_client, &server->startup_client_destroyed);
-
-	wlr_log(WLR_INFO, "Executing \"%s\"", server->startup_cmd);
-	pid_t pid = fork();
-	if (pid < 0) {
-		wlr_log(WLR_ERROR, "Failed to fork for startup command");
-		abort();
-	} else if (pid == 0) {
-		/* Child process. Will be used to prevent zombie processes by
-		   killing its parent and having init be its new parent.
-		*/
-		pid = fork();
-		if (pid < 0) {
-			wlr_log(WLR_ERROR, "Failed to fork for second time");
-			abort();
-		} else if (pid == 0) {
-			if (!set_cloexec(sockets[1], false)) {
-				wlr_log(WLR_ERROR,
-						"Could not unset close exec flag for forked child");
-				abort();
-			}
-			char wayland_socket_str[16];
-			snprintf(wayland_socket_str, sizeof(wayland_socket_str), "%d",
-					sockets[1]);
-			setenv("WAYLAND_SOCKET", wayland_socket_str, true);
-			execl("/bin/sh", "/bin/sh", "-c", server->startup_cmd, NULL);
-			wlr_log(WLR_ERROR, "exec failed");
-			exit(1);
-		}
-		exit(0);
-	}
-	close(sockets[1]);
+	execute(server->display, server->startup_cmd, NULL, NULL);
 }
