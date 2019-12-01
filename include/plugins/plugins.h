@@ -8,6 +8,8 @@
 struct wc_plugins {
 	struct wc_server *server;
 
+	struct wl_list authorizations;
+
 	struct wl_global *keybindings_global;
 	struct wl_list keybinders;
 };
