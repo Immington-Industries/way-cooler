@@ -40,7 +40,7 @@ static void keybindings_handle_resource_destroy(struct wl_resource *resource) {
 
 static void keybindings_bind(
 		struct wl_client *client, void *data, uint32_t version, uint32_t id) {
-	struct wc_server *server = data;
+	struct wc_plugins *plugins = data;
 
 	struct wl_resource *resource = wl_resource_create(
 			client, &zway_cooler_keybindings_interface, version, id);
@@ -53,28 +53,29 @@ static void keybindings_bind(
 	}
 
 	keybindings->registered_keys = registered_keys;
-	keybindings->server = server;
+	keybindings->plugins = plugins;
 	keybindings->client = client;
 	keybindings->resource = resource;
 	wl_resource_set_implementation(resource, &keybindings_impl, keybindings,
 			keybindings_handle_resource_destroy);
 	wl_resource_set_user_data(resource, keybindings);
 
-	wl_list_insert(&server->keybinders, &keybindings->link);
+	wl_list_insert(&plugins->keybinders, &keybindings->link);
 }
 
-void wc_keybindings_init(struct wc_server *server) {
-	wl_list_init(&server->keybinders);
-	server->keybindings_global = wl_global_create(server->wl_display,
-			&zway_cooler_keybindings_interface, KEYBINDINGS_VERSION, server,
+void wc_keybindings_init(struct wc_plugins *plugins) {
+	struct wc_server *server = plugins->server;
+	wl_list_init(&plugins->keybinders);
+	plugins->keybindings_global = wl_global_create(server->wl_display,
+			&zway_cooler_keybindings_interface, KEYBINDINGS_VERSION, plugins,
 			keybindings_bind);
 }
 
-void wc_keybindings_fini(struct wc_server *server) {
-	wl_global_destroy(server->keybindings_global);
+void wc_keybindings_fini(struct wc_plugins *plugins) {
+	wl_global_destroy(plugins->keybindings_global);
 
 	struct wc_keybindings *keybindings, *temp;
-	wl_list_for_each_safe(keybindings, temp, &server->keybinders, link) {
+	wl_list_for_each_safe(keybindings, temp, &plugins->keybinders, link) {
 		xkb_hash_set_destroy(keybindings->registered_keys);
 		free(keybindings);
 	}
@@ -84,7 +85,7 @@ void wc_keybindings_clear_keys(struct wc_keybindings *keybindings) {
 	xkb_hash_set_clear(keybindings->registered_keys);
 }
 
-bool wc_keybindings_notify_key_if_registered(struct wc_server *server,
+bool wc_keybindings_notify_key_if_registered(struct wc_plugins *plugins,
 		uint32_t key_code, xkb_mod_mask_t key_mask, bool pressed,
 		uint32_t time) {
 	enum zway_cooler_keybindings_key_state press_state = pressed ?
@@ -92,7 +93,7 @@ bool wc_keybindings_notify_key_if_registered(struct wc_server *server,
 			ZWAY_COOLER_KEYBINDINGS_KEY_STATE_RELEASED;
 	bool seen_once = false;
 	struct wc_keybindings *keybindings, *temp;
-	wl_list_for_each_safe(keybindings, temp, &server->keybinders, link) {
+	wl_list_for_each_safe(keybindings, temp, &plugins->keybinders, link) {
 		if (keybindings->resource == NULL) {
 			continue;
 		}

@@ -4,14 +4,14 @@
 #include <stdint.h>
 #include <wayland-server.h>
 
-#include "compositor/server.h"
+#include "plugins/plugins.h"
 #include "utils/xkb_hash_set.h"
 
 #define KEYBINDINGS_VERSION 1
 
 struct wc_keybindings {
 	struct wl_list link;  // wc_server.keybinders
-	struct wc_server *server;
+	struct wc_plugins *plugins;
 
 	struct xkb_hash_set *registered_keys;
 
@@ -19,9 +19,9 @@ struct wc_keybindings {
 	struct wl_client *client;
 };
 
-void wc_keybindings_init(struct wc_server *server);
+void wc_keybindings_init(struct wc_plugins *plugins);
 
-void wc_keybindings_fini(struct wc_server *server);
+void wc_keybindings_fini(struct wc_plugins *plugins);
 
 /*
  * Checks if the key is registered as a keybinding and, if so, sends it to the
@@ -32,7 +32,7 @@ void wc_keybindings_fini(struct wc_server *server);
  * Mods is expected to be all mods that are either depressed, latched, or
  * locked.
  */
-bool wc_keybindings_notify_key_if_registered(struct wc_server *server,
+bool wc_keybindings_notify_key_if_registered(struct wc_plugins *plugins,
 		uint32_t key_code, xkb_mod_mask_t key_mask, bool pressed,
 		uint32_t time);
 

@@ -65,7 +65,7 @@ static void wc_keyboard_on_key(struct wl_listener *listener, void *data) {
 
 		bool pressed = event->state == WLR_KEY_PRESSED;
 		handled = wc_keybindings_notify_key_if_registered(
-				server, keycode, modifiers, pressed, event->time_msec);
+				server->plugins, keycode, modifiers, pressed, event->time_msec);
 	}
 
 	if (!handled) {

@@ -27,7 +27,7 @@
 #include "compositor/seat.h"
 #include "compositor/view.h"
 #include "compositor/xwayland.h"
-#include "plugins/keybindings.h"
+#include "plugins/plugins.h"
 
 static void startup_command_killed(struct wl_listener *listener, void *data) {
 	struct wc_server *server =
@@ -74,9 +74,7 @@ bool init_server(struct wc_server *server) {
 	server->xdg_output_manager = wlr_xdg_output_manager_v1_create(
 			server->wl_display, server->output_layout);
 
-	wc_keybindings_init(server);
-
-	return true;
+	return wc_plugins_init(server);
 }
 
 void fini_server(struct wc_server *server) {
@@ -95,6 +93,7 @@ void fini_server(struct wc_server *server) {
 
 	wc_keybindings_fini(server);
 	*/
+	wc_plugins_fini(server);
 
 	wc_xwayland_fini(server);
 	wl_display_destroy_clients(server->wl_display);
